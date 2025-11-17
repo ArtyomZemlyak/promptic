@@ -2,7 +2,7 @@
 
 ## Blueprint Schema & Authoring Format
 - **Decision**: Represent blueprints as Pydantic models persisted as YAML files (human-friendly) with JSON Schema published for validation.
-- **Rationale**: YAML keeps designer ergonomics high, while Pydantic ensures structural guarantees and makes it trivial to serialize/deserialize during runtime and CLI interactions.
+- **Rationale**: YAML keeps designer ergonomics high, while Pydantic ensures structural guarantees and makes it trivial to serialize/deserialize during runtime and SDK interactions.
 - **Alternatives considered**:
   - Pure JSON: easy for machines but harder for large hierarchical instruction trees.
   - Custom DSL: more expressive but introduces parser maintenance and higher learning curve.
@@ -30,7 +30,7 @@
 
 ## Observability & Auditing
 - **Decision**: Provide pluggable logger that records every instruction/data/memory lookup plus context-size checkpoints, emitting JSON Lines for downstream tooling.
-- **Rationale**: Auditing was a functional requirement, and JSONL streams integrate cleanly with CLI previews or log aggregation without forcing a database.
+- **Rationale**: Auditing was a functional requirement, and JSONL streams integrate cleanly with SDK previews or log aggregation without forcing a database.
 - **Alternatives considered**:
   - SQL persistence: overkill for MVP and adds migration burden.
   - Plain stdout logging: hard to parse programmatically.

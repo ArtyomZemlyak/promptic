@@ -5,7 +5,7 @@ All models will be implemented as `pydantic.BaseModel` subclasses (domain layer)
 ## ContextBlueprint
 | Field | Type | Description | Validation |
 |-------|------|-------------|------------|
-| `id` | `UUID4` | Blueprint identifier exposed to CLI/agents | Auto-generated; immutable |
+| `id` | `UUID4` | Blueprint identifier exposed to SDK/agents | Auto-generated; immutable |
 | `name` | `str` | Human-readable label | 3–80 chars |
 | `prompt_template` | `str` | Base system prompt text | Non-empty; supports Jinja2 placeholders |
 | `global_instructions` | `list[InstructionNodeRef]` | Instruction assets applied to every step | Each ref must resolve |

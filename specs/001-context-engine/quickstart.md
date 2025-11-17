@@ -2,7 +2,7 @@
 
 ## 1. Install & Configure
 ```bash
-pip install -e .[cli,adapters]
+pip install -e .[adapters]
 cp .env.example .env
 ```
 Populate `.env` with the `ContextEngineSettings` fields (filesystem root, default adapters, per-step size budgets). Settings are loaded via `pydantic-settings`, so environment variables beat `.env`.
@@ -56,15 +56,28 @@ registry.register_memory("vector_db", QdrantMemory)
 Adapters inherit from `BaseAdapter`/`BaseMemoryProvider` and accept `BaseSettings` configs. Registration can run at import time or via plugin entry points.
 
 ## 4. Preview & Execute
-```bash
-promptic blueprint preview research-flow --sample samples/research.json
-promptic pipeline run research-flow --data sources=samples/research.csv
+```python
+from promptic.sdk import blueprints, pipeline
+
+preview = blueprints.preview_blueprint(
+    blueprint_id="research-flow",
+    sample_data={"sources": [{"title": "Paper A", "url": "https://example.com"}]},
+)
+print(preview.rendered_context)
+
+run = pipeline.run_pipeline(
+    blueprint_id="research-flow",
+    data_inputs={"sources": [{"title": "Paper A", "url": "https://example.com"}]},
+    memory_inputs={"prior_findings": ["vector://finding-123"]},
+)
+for event in run.events:
+    print(event.event_type, event.payload)
 ```
-Preview renders merged context and highlights unresolved placeholders. Execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`.
+Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`.
 
 ## 5. Audit Outputs
 - Inspect `logs/*.jsonl` for `size_warning` or `error` events.
-- Use `promptic pipeline trace research-flow --step summarize --item 2` to replay nested instructions for a specific item.
+- Use `pipeline.trace_run(run_id, step_id="summarize", item_index=2)` (SDK helper) to replay nested instructions for a specific item.
 
 ## 6. Iterate
 - Update YAML/Markdown assets; no Python edits required unless adding adapters.

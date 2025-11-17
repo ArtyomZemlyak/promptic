@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: >
     Reference contract for hosting the Context Engineering Library behind an HTTP surface.
-    The local CLI will call equivalent in-process services.
+    The local SDK will call equivalent in-process services.
 servers:
   - url: https://api.promptic.local/context-engine/v1
 paths:
