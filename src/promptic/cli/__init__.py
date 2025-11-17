@@ -1,0 +1,1 @@
+"""Promptic cli package."""
