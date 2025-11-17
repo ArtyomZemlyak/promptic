@@ -34,9 +34,6 @@ dev = [
     "types-PyYAML>=6.0.12",
 ]
 
-[project.scripts]
-promptic = "promptic.cli.main:app"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 

@@ -7,6 +7,6 @@ cover once the adapter registry is implemented.
 ## Planned Sections
 
 - Overview of `DataSourceAdapter` vs `MemoryProvider` abstractions.
-- Instructions for registering adapters via the CLI (`promptic adapter register`) and SDK.
+- Instructions for registering adapters via the Python SDK (no CLI dependency).
 - Configuration examples using `ContextEngineSettings` + `pydantic-settings`.
 - Failure-handling patterns (retry budgets, structured error outputs).

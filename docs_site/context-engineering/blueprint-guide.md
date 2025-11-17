@@ -8,5 +8,5 @@ the builder/previewer services exist.
 ## Planned Sections
 
 - Blueprint schema overview referencing `ContextBlueprint`, `BlueprintStep`, and slot entities.
-- CLI-based workflow for creating new blueprints and previewing them.
+- Python SDK workflow for creating new blueprints and previewing them.
 - Troubleshooting checklist for validation errors (missing assets, cyclic references, etc.).
