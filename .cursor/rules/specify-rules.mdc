@@ -1,0 +1,29 @@
+# promptic Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-11-17
+
+## Active Technologies
+
+- Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`) (001-context-engine)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] pytest [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] ruff check .
+
+## Code Style
+
+Python 3.11 (CPython): Follow standard conventions
+
+## Recent Changes
+
+- 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

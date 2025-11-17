@@ -1,0 +1,260 @@
+openapi: 3.0.1
+info:
+  title: Context Engineering API
+  version: 0.1.0
+  description: >
+    Reference contract for hosting the Context Engineering Library behind an HTTP surface.
+    The local CLI will call equivalent in-process services.
+servers:
+  - url: https://api.promptic.local/context-engine/v1
+paths:
+  /blueprints:
+    post:
+      summary: Create or update a blueprint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextBlueprint'
+      responses:
+        "201":
+          description: Blueprint stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextBlueprint'
+        "400":
+          description: Validation error
+  /blueprints/{blueprint_id}:
+    get:
+      summary: Retrieve blueprint details
+      parameters:
+        - in: path
+          name: blueprint_id
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Blueprint found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextBlueprint'
+        "404":
+          description: Not found
+  /blueprints/{blueprint_id}/preview:
+    post:
+      summary: Render a preview with sample data
+      parameters:
+        - in: path
+          name: blueprint_id
+          schema:
+            type: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewRequest'
+      responses:
+        "200":
+          description: Preview text and warnings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewResponse'
+        "422":
+          description: Missing data/memory slots
+  /blueprints/{blueprint_id}/execute:
+    post:
+      summary: Execute pipeline and log events
+      parameters:
+        - in: path
+          name: blueprint_id
+          schema:
+            type: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionRequest'
+      responses:
+        "202":
+          description: Run accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionAck'
+  /adapters/data:
+    post:
+      summary: Register a data adapter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterRegistration'
+      responses:
+        "201":
+          description: Adapter registered
+  /adapters/memory:
+    post:
+      summary: Register a memory provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdapterRegistration'
+      responses:
+        "201":
+          description: Provider registered
+components:
+  schemas:
+    ContextBlueprint:
+      type: object
+      required: [id, name, prompt_template, steps, data_slots, memory_slots]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        prompt_template:
+          type: string
+        global_instructions:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructionNodeRef'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlueprintStep'
+        data_slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataSlot'
+        memory_slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemorySlot'
+    BlueprintStep:
+      type: object
+      required: [step_id, title, kind]
+      properties:
+        step_id:
+          type: string
+        title:
+          type: string
+        kind:
+          type: string
+          enum: [sequence, loop, branch]
+        instruction_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructionNodeRef'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlueprintStep'
+        loop_slot:
+          type: string
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+    InstructionNodeRef:
+      type: object
+      required: [instruction_id]
+      properties:
+        instruction_id:
+          type: string
+        version:
+          type: string
+    DataSlot:
+      type: object
+      required: [name, adapter_key, schema]
+      properties:
+        name:
+          type: string
+        adapter_key:
+          type: string
+        schema:
+          type: object
+        cardinality:
+          type: string
+          enum: [single, list]
+          default: single
+    MemorySlot:
+      type: object
+      required: [name, provider_key]
+      properties:
+        name:
+          type: string
+        provider_key:
+          type: string
+        scope:
+          type: string
+          enum: [conversation, project, global]
+          default: conversation
+    AdapterRegistration:
+      type: object
+      required: [key, type, entry_point]
+      properties:
+        key:
+          type: string
+        type:
+          type: string
+          enum: [data, memory]
+        entry_point:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+    PreviewRequest:
+      type: object
+      properties:
+        sample_data:
+          type: object
+        sample_memory:
+          type: object
+    PreviewResponse:
+      type: object
+      required: [rendered_context]
+      properties:
+        rendered_context:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    ExecutionRequest:
+      type: object
+      required: [data_inputs, memory_inputs]
+      properties:
+        data_inputs:
+          type: object
+        memory_inputs:
+          type: object
+    ExecutionAck:
+      type: object
+      required: [run_id]
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [accepted, queued]
+    Condition:
+      type: object
+      required: [expression]
+      properties:
+        expression:
+          type: string
+        description:
+          type: string
