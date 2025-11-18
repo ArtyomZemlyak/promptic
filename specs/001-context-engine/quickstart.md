@@ -73,7 +73,7 @@ run = pipeline.run_pipeline(
 for event in run.events:
     print(event.event_type, event.payload)
 ```
-Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`.
+Both `blueprints.preview_blueprint` and `pipeline.run_pipeline` resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated even in US1. Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`.
 
 ## 5. Audit Outputs
 - Inspect `logs/*.jsonl` for `size_warning` or `error` events.

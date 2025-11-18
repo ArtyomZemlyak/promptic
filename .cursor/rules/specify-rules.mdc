@@ -22,6 +22,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11 (CPython): Follow standard conventions
 
 ## Recent Changes
+- 001-context-engine: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 - 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)
 

@@ -76,8 +76,21 @@ Instruction nodes live in instruction store; blueprint references only `instruct
 | `payload` | `dict[str, Any]` | Context (sizes, adapter keys, errors) | kept ≤4 KB |
 | `reference_ids` | `list[str]` | Instruction/data/memory IDs touched | optional |
 
+## ContextMaterializer
+| Field | Type | Description | Validation |
+|-------|------|-------------|------------|
+| `id` | `UUID4` | Materializer instance identifier for logging/tracing | Auto |
+| `data_registry` | `AdapterRegistryView` | Read-only map of data adapters | Injected; no mutation |
+| `memory_registry` | `AdapterRegistryView` | Read-only map of memory providers | Injected; no mutation |
+| `cache` | `ContextCache` | Optional memoization layer for slot resolutions | Interface; pluggable |
+| `resolve_data(slot: DataSlot, context: MaterializationContext)` | callable | Fetches data via adapter + enforces policies | Must raise typed errors on failure |
+| `resolve_memory(slot: MemorySlot, context: MaterializationContext)` | callable | Fetches memory via provider with retries | Same guarantees as data |
+
+Notes: Use-case services (`ContextPreviewer`, `PipelineExecutor`, SDK façades) depend only on this interface, never on adapter registries directly. Tests mock/stub the materializer to isolate workflows.
+
 ## Relationships Overview
 - `ContextBlueprint` aggregates `BlueprintStep`, `DataSlot`, `MemorySlot`.
 - `BlueprintStep` tree references `InstructionNode` via `InstructionNodeRef` (id + version).
 - `DataSlot` / `MemorySlot` resolve via `AdapterRegistration`.
-- `PipelineExecutor` produces `ExecutionLogEntry` records per step, linking back to blueprint + adapters.
+- `ContextMaterializer` mediates all interactions between use cases and adapters, emitting cache hits/misses for observability.
+- `PipelineExecutor` produces `ExecutionLogEntry` records per step, linking back to blueprints, materializer events, and adapter metadata.

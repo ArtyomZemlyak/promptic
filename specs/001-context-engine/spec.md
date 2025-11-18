@@ -17,6 +17,7 @@
 ### Session 2025-11-18
 
 - Q: Should `ContextMaterializer` be treated as a new use case or folded into existing preview/executor services? → A: Keep it as a dedicated registry-style module documented in the spec so layering remains explicit.
+- Q: Should T020/T021 rely on ContextMaterializer from day one or pull T034 earlier? → A: Keep T034 in US2, but inject the existing ContextMaterializer interface into T020/T021 immediately and add tests proving preview/executor flows never touch adapters directly.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -41,7 +42,7 @@ Prompt/system designers define multi-level context blueprints that combine promp
 
 **Independent Test**: Starting from an empty workspace, a designer can author a blueprint with five pipeline steps (including nested instructions for step 3) and preview the composed context for a sample data item.
 
-**Architecture Impact**: Introduces `ContextBlueprint` entity (domain) and `BlueprintBuilder` use case with adapters for file I/O. Enforces SRP by keeping blueprint assembly separate from rendering; dependency inversion ensures builders depend on interfaces for instruction/data retrieval.
+**Architecture Impact**: Introduces `ContextBlueprint` entity (domain) and `BlueprintBuilder` use case with adapters for file I/O. Enforces SRP by keeping blueprint assembly separate from rendering; dependency inversion ensures builders depend on interfaces for instruction/data retrieval. `ContextPreviewer` and any early executor helpers must call data/memory slots exclusively via the `ContextMaterializer` abstraction so adapter registries stay encapsulated even before T034 wires additional flows.
 
 **Quality Signals**: Unit tests for blueprint validation rules, integration test that assembles a sample 5-step pipeline, docs_site guide “Context blueprint authoring”, `# AICODE-NOTE` capturing blueprint schema rationale.
 
@@ -111,7 +112,7 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 
 - **FR-001**: The library MUST let users define a context blueprint composed of prompt text, instruction blocks, data slots, and memory slots in a single schema.
 - **FR-002**: The blueprint engine MUST support hierarchical step structures, including nested instructions and repeating steps for item collections.
-- **FR-003**: The system MUST expose pluggable interfaces for data sources and memory providers so integrators can register custom adapters without modifying core modules.
+- **FR-003**: The system MUST expose pluggable interfaces for data sources and memory providers so integrators can register custom adapters without modifying core modules, and preview/execution use cases must interact with those adapters only through the `ContextMaterializer` abstraction starting in US1.
 - **FR-004**: The executor MUST resolve instruction references at runtime (e.g., loading `3_step_instruction`) and provide transparent caching to avoid redundant file reads within a run.
 - **FR-005**: The library MUST render a preview of the fully assembled context for any blueprint + sample data combination, highlighting unresolved placeholders.
 - **FR-006**: Validation MUST detect circular references, missing assets, or slot mismatches before execution and return actionable error messages.

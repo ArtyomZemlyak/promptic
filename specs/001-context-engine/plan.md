@@ -1,38 +1,33 @@
 # Implementation Plan: Context Engineering Library
 
-**Branch**: `001-context-engine` | **Date**: 2025-11-17 | **Spec**: [spec.md](./spec.md)  
+**Branch**: `001-context-engine` | **Date**: 2025-11-18 | **Spec**: [spec.md](./spec.md)  
 **Input**: Feature specification from `/specs/001-context-engine/spec.md`
 
-**Note**: This plan assumes we are building a Python library with iterative releases but designs for the “final” extensible architecture so later iterations reuse the same modules.
+**Note**: Follow the `promptic Constitution` for clean layering, SOLID responsibilities, evidence-driven testing, automated gates, and documentation traceability.
 
 ## Summary
 
-We will ship a Python 3.11+ library that lets designers compose full conversational contexts (prompt + reusable instructions + data slots + memory slots) as hierarchical blueprints, plug any data/memory providers through adapters, and execute pipelines where each step can recurse through its own instruction assets. A dedicated `ContextMaterializer` use case will broker adapter registry lookups, caching, and error handling for both preview and execution flows so `ContextPreviewer` and `PipelineExecutor` stay focused on traversal logic. The technical plan commits to clean layering (domain blueprints, use-case services, adapters), Pydantic-based schemas/settings, and deterministic tooling so we can iterate rapidly without rewriting architecture.
-
-**Scope guardrail**: This release intentionally excludes HTTP/REST endpoints, CLI utilities, or persistent services. All consumer touchpoints are the Python SDK.
+Deliver a Python 3.11+ library that lets designers define hierarchical context blueprints, plug arbitrary data/memory adapters, and execute instruction pipelines through the SDK. A dedicated `ContextMaterializer` (built in Phase 2 foundations) brokers every data/memory lookup so `ContextPreviewer`, `PipelineExecutor`, and SDK façades stay insulated from adapters. Per the latest clarification, `BlueprintBuilder` (T020) and `ContextPreviewer` (T021) must depend on the `ContextMaterializer` abstraction from their first commit, and unit/contract tests will assert that no preview/execution flow touches adapter registries directly. US2 later wires additional runtime behaviors (T034), but layering discipline is enforced Day 1.
 
 ## Technical Context
 
 **Language/Version**: Python 3.11 (CPython)  
-**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)  
-**Storage**: Default local filesystem for instruction assets + adapter interfaces for external stores (HTTP APIs, vector DBs, Redis). No persistent DB baked into core.  
-**Testing**: `pytest`, `pytest-asyncio` for async adapters, `hypothesis` for blueprint validation fuzzing, golden-file tests for context rendering.  
-**Target Platform**: Linux (WSL2) + macOS + GitHub Actions CI; library remains platform-agnostic.  
-**Project Type**: Single Python package (`src/promptic/`) with SDK-facing modules and supporting docs.  
-**Performance Goals**: Render 5-step hierarchical blueprint with ≤100 instruction nodes in <500 ms on developer hardware; adapter registry loads within 200 ms; blueprint validation handles 1k nodes under 2 s.  
-**Constraints**: Keep in-memory context payloads <256 MB by enforcing per-step size budgets; zero external network calls in core (adapters isolate them); all configuration via Pydantic settings objects.  
-**Scale/Scope**: Support dozens of concurrent blueprints per process, each with nested pipelines, initial release focusing on authoring/execution flows plus extensibility hooks for future multi-agent orchestration.
+**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, plus optional adapter extras (`httpx`, `pandas`, `faiss-cpu`)  
+**Storage**: Local filesystem for instruction assets by default; adapters abstract HTTP/file/vector sources for data/memory. No persistent DB bundled.  
+**Testing**: `pytest`, `pytest-asyncio`, `hypothesis` (schema fuzzing), contract tests exercising SDK façades, integration suites for 5-step blueprints, unit suites per module.  
+**Target Platform**: Linux/macOS developer machines, GitHub Actions CI; library consumed via importable SDK (no services).  
+**Project Type**: Single Python package under `src/promptic/` with clean architecture subpackages (domain, pipeline, adapters, SDK).  
+**Performance Goals**: Render 5-step blueprints with ≤100 instruction nodes in <500 ms; adapter registry init <200 ms; blueprint validation handles 1k nodes in <2 s; execution logs stream without blocking.  
+**Constraints**: In-memory context payloads <256 MB via per-step budgets; zero direct network calls from domain/use-case layers; `ContextMaterializer` remains sole adapter touchpoint; functions <100 logical lines; follow Black/isort.  
+**Scale/Scope**: Support dozens of concurrent blueprints per process with nested pipelines; MVP ships US1 fully, US2 adapter swaps, US3 execution loops; adapters can be extended without modifying core.
 
 ## Constitution Check
 
-- **Architecture**: Domain layer holds `ContextBlueprint`, `InstructionNode`, slots, and value objects. Use cases (`BlueprintBuilder`, `ContextMaterializer`, `ContextPreviewer`, `PipelineExecutor`) depend only on interfaces (`InstructionStore`, `DataSourceAdapter`, `MemoryProvider`). `ContextMaterializer` centralizes registry access/caching so preview/execution flows do not reach directly into adapter layers. Interface adapters live under `adapters/` for filesystem, HTTP, vector DB, etc. No framework imports leak inward. Status: PASS.
-- **Testing Evidence**: Commit to unit suites for schema validation, adapter registries, executor traversal; integration suites for 5-step sample pipeline across two adapter implementations; contract suites ensuring adapters honor required async/sync signatures. All tests run via `pytest -m "unit or integration or contract"` with CI enforcement. Status: PASS.
-- **Quality Gates**: Black (line length 100), isort (profile black), mypy (strict optional), plus `pre-commit run --all-files` before each commit. Lint results captured in PR template. Status: PASS.
-- **Documentation & Traceability**: Update `docs_site/context-engineering/` with blueprint schema, adapter integration, execution walkthrough; ensure spec/plan/data-model/contracts stay in sync; capture architectural rationale in `# AICODE-NOTE` comments and research.md. Status: PASS.
-- **Readability & DX**: Enforce modules <400 lines, functions <100 logical lines, and descriptive names (`render_context_preview`). Provide SDK convenience functions + quickstart so designers avoid touching low-level modules. Status: PASS.
-- **AICODE-NOTE**: Readability limits are treated as reviewer guidelines; we rely on Black (line length 100), isort, and PR review rather than building bespoke linters for counting lines.
-
-Re-check Constitution gates after Phase 1 artifacts are generated; any deviation requires entries in “Complexity Tracking.”
+- **Architecture**: Domain layer hosts `ContextBlueprint`, `InstructionNode`, slots, and value objects. Use cases (`BlueprintBuilder`, `ContextPreviewer`, `PipelineExecutor`, `ContextMaterializer`) depend only on interfaces like `InstructionStore`, `DataSourceAdapter`, `MemoryProvider`. All slot resolution flows (even in US1) inject `ContextMaterializer` so adapter registries remain encapsulated per Principle P1; T034 in US2 expands orchestration but does not change the dependency graph. Any deviation requires `# AICODE-NOTE` justification.
+- **Testing Evidence**: Contract + integration suites (`T017`–`T019`, `T028`–`T040`) cover blueprint preview, adapter swaps, and executor traversal. Unit suites (`tests/unit/pipeline/test_context_materializer.py`, preview/executor tests) mock adapters through the materializer to prove no direct registry access. Regression tests capture failure cases like missing assets, circular steps, and adapter errors.
+- **Quality Gates**: Black (line length 100), isort (profile black), mypy (strict optional), and `pre-commit run --all-files` gate every commit. CI runs `pytest -m "unit or integration or contract"` plus coverage thresholds. Lint/format failures block merges (Principle P3).
+- **Documentation & Traceability**: Update `docs_site/context-engineering/` guides (blueprint, adapter, execution), `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, contracts, and inline `# AICODE-*` comments whenever behavior changes. Record clarification answers under `## Clarifications` ASAP (Principle P4).
+- **Readability & DX**: Keep modules ≤400 LOC, functions <100 logical lines, and naming descriptive (`render_context_preview`). Provide SDK façade helpers so designers avoid touching low-level modules. Capture non-obvious logic with `# AICODE-NOTE` comments instead of clever abstractions (Principle P5).
 
 ## Project Structure
 
@@ -44,9 +39,13 @@ specs/001-context-engine/
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── spec.md
+├── tasks.md
 ├── contracts/
 │   └── context-engineering.yaml
-└── tasks.md              # Generated by /speckit.tasks (future)
+└── checklists/
+    ├── requirements.md
+    └── solid.md
 ```
 
 ### Source Code (repository root)
@@ -54,15 +53,36 @@ specs/001-context-engine/
 ```text
 src/
 └── promptic/
-    ├── blueprints/            # Domain models + serialization
-    ├── instructions/          # Instruction stores + caching
-    ├── pipeline/              # Use cases: builder, materializer, previewer, executor
+    ├── __init__.py
     ├── adapters/
+    │   ├── __init__.py
+    │   ├── registry.py
     │   ├── data/
     │   └── memory/
-    ├── context/               # Rendering + logging utilities
-    ├── settings/              # Pydantic settings profiles
-    └── sdk/                   # High-level SDK façades
+    ├── blueprints/
+    │   ├── __init__.py
+    │   ├── models.py
+    │   └── serialization.py
+    ├── instructions/
+    │   ├── store.py
+    │   └── cache.py
+    ├── pipeline/
+    │   ├── builder.py
+    │   ├── previewer.py
+    │   ├── executor.py
+    │   ├── context_materializer.py
+    │   ├── validation.py
+    │   └── loggers.py
+    ├── context/
+    │   ├── rendering.py
+    │   └── logging.py
+    ├── settings/
+    │   └── base.py
+    └── sdk/
+        ├── api.py
+        ├── adapters.py
+        ├── blueprints.py
+        └── pipeline.py
 
 tests/
 ├── unit/
@@ -76,8 +96,8 @@ docs_site/
     └── execution-recipes.md
 ```
 
-**Structure Decision**: Ship as a single Python package with modular subpackages so adapters, pipeline logic, and SDK façades can evolve independently. Tests mirror source tree (unit vs integration vs contract). Documentation lives under `docs_site/context-engineering/` so guides stay co-located with specs. This layout keeps clean architecture layers explicit and simplifies packaging to PyPI later.
+**Structure Decision**: Single Python package with clean-architecture subpackages mirrors source-of-truth layering. Tests/documents mirror runtime directories so each user story remains independently testable/documented.
 
 ## Complexity Tracking
 
-No Constitution violations are anticipated; table intentionally left empty. Populate only if future iterations justify exceptions (e.g., extra runtime service or skipped tests).
+No Constitution deviations anticipated; leave table empty unless future changes require exceptions.

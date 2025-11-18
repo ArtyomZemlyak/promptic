@@ -41,3 +41,10 @@
 - **Alternatives considered**:
   - Allow unlimited payloads: risks OOM and unpredictable agent results.
   - Hard-coded limits: inflexible across teams and models.
+
+## ContextMaterializer Boundary Enforcement
+- **Decision**: Treat `ContextMaterializer` as the sole gateway to adapter registries from the moment `BlueprintBuilder` (T020) and `ContextPreviewer` (T021) are implemented; downstream executors and SDK layers inject the same abstraction.
+- **Rationale**: Enforces Principle P1 (clean architecture) by preventing preview/execution code from reaching into adapter registries, ensures SOLID responsibilities stay intact even before T034 wiring, and simplifies testing by letting suites stub one interface.
+- **Alternatives considered**:
+  - Delay the materializer dependency until T034: risks early adapters leaking into use cases and violates the Constitution.
+  - Hardcode adapter lookups inside preview/executor modules: creates tight coupling, harder mocking, and inevitable refactors once US2 starts.
