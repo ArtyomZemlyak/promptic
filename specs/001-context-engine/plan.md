@@ -7,18 +7,18 @@
 
 ## Summary
 
-We will ship a Python 3.11+ library and CLI that let designers compose full conversational contexts (prompt + reusable instructions + data slots + memory slots) as hierarchical blueprints, plug any data/memory providers through adapters, and execute pipelines where each step can recurse through its own instruction assets. The technical plan commits to clean layering (domain blueprints, use-case services, adapters), Pydantic-based schemas/settings, and deterministic tooling so we can iterate rapidly without rewriting architecture.
+We will ship a Python 3.11+ library that lets designers compose full conversational contexts (prompt + reusable instructions + data slots + memory slots) as hierarchical blueprints, plug any data/memory providers through adapters, and execute pipelines where each step can recurse through its own instruction assets. The technical plan commits to clean layering (domain blueprints, use-case services, adapters), Pydantic-based schemas/settings, and deterministic tooling so we can iterate rapidly without rewriting architecture.
 
-**Scope guardrail**: This release intentionally excludes HTTP/REST endpoints or persistent services. All consumer touchpoints are the Python SDK and Typer CLI commands shipped with the library.
+**Scope guardrail**: This release intentionally excludes HTTP/REST endpoints, CLI utilities, or persistent services. All consumer touchpoints are the Python SDK.
 
 ## Technical Context
 
 **Language/Version**: Python 3.11 (CPython)  
-**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)  
+**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)  
 **Storage**: Default local filesystem for instruction assets + adapter interfaces for external stores (HTTP APIs, vector DBs, Redis). No persistent DB baked into core.  
 **Testing**: `pytest`, `pytest-asyncio` for async adapters, `hypothesis` for blueprint validation fuzzing, golden-file tests for context rendering.  
 **Target Platform**: Linux (WSL2) + macOS + GitHub Actions CI; library remains platform-agnostic.  
-**Project Type**: Single Python package (`src/promptic/`) with CLI entrypoint and supporting docs.  
+**Project Type**: Single Python package (`src/promptic/`) with SDK-facing modules and supporting docs.  
 **Performance Goals**: Render 5-step hierarchical blueprint with ≤100 instruction nodes in <500 ms on developer hardware; adapter registry loads within 200 ms; blueprint validation handles 1k nodes under 2 s.  
 **Constraints**: Keep in-memory context payloads <256 MB by enforcing per-step size budgets; zero external network calls in core (adapters isolate them); all configuration via Pydantic settings objects.  
 **Scale/Scope**: Support dozens of concurrent blueprints per process, each with nested pipelines, initial release focusing on authoring/execution flows plus extensibility hooks for future multi-agent orchestration.
@@ -29,7 +29,7 @@ We will ship a Python 3.11+ library and CLI that let designers compose full conv
 - **Testing Evidence**: Commit to unit suites for schema validation, adapter registries, executor traversal; integration suites for 5-step sample pipeline across two adapter implementations; contract suites ensuring adapters honor required async/sync signatures. All tests run via `pytest -m "unit or integration or contract"` with CI enforcement. Status: PASS.
 - **Quality Gates**: Black (line length 100), isort (profile black), mypy (strict optional), plus `pre-commit run --all-files` before each commit. Lint results captured in PR template. Status: PASS.
 - **Documentation & Traceability**: Update `docs_site/context-engineering/` with blueprint schema, adapter integration, execution walkthrough; ensure spec/plan/data-model/contracts stay in sync; capture architectural rationale in `# AICODE-NOTE` comments and research.md. Status: PASS.
-- **Readability & DX**: Enforce modules <400 lines, functions <100 logical lines, Typer CLI commands per file, descriptive names (`render_context_preview`). Provide CLI scaffolding + quickstart so designers avoid touching Python. Status: PASS.
+- **Readability & DX**: Enforce modules <400 lines, functions <100 logical lines, and descriptive names (`render_context_preview`). Provide SDK convenience functions + quickstart so designers avoid touching low-level modules. Status: PASS.
 - **AICODE-NOTE**: Readability limits are treated as reviewer guidelines; we rely on Black (line length 100), isort, and PR review rather than building bespoke linters for counting lines.
 
 Re-check Constitution gates after Phase 1 artifacts are generated; any deviation requires entries in “Complexity Tracking.”
@@ -62,7 +62,7 @@ src/
     │   └── memory/
     ├── context/               # Rendering + logging utilities
     ├── settings/              # Pydantic settings profiles
-    └── cli/                   # Typer commands
+    └── sdk/                   # High-level SDK façades
 
 tests/
 ├── unit/
@@ -76,7 +76,7 @@ docs_site/
     └── execution-recipes.md
 ```
 
-**Structure Decision**: Ship as a single Python package with modular subpackages so adapters, pipeline logic, and CLI can evolve independently. Tests mirror source tree (unit vs integration vs contract). Documentation lives under `docs_site/context-engineering/` so guides stay co-located with specs. This layout keeps clean architecture layers explicit and simplifies packaging to PyPI later.
+**Structure Decision**: Ship as a single Python package with modular subpackages so adapters, pipeline logic, and SDK façades can evolve independently. Tests mirror source tree (unit vs integration vs contract). Documentation lives under `docs_site/context-engineering/` so guides stay co-located with specs. This layout keeps clean architecture layers explicit and simplifies packaging to PyPI later.
 
 ## Complexity Tracking
 

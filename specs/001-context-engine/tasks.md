@@ -13,17 +13,17 @@
 - **[Story]**: User story tag (US1, US2, US3, …) only for user-story phases
 - Include exact file paths in every description
 
-**Scope Reminder**: All tasks operate within the Python SDK + Typer CLI. Do not add HTTP endpoints or long-lived services during this feature. Black (line length 100) remains the only line-length enforcement; readability limits are handled via code review guidance.
+**Scope Reminder**: All tasks operate within the Python SDK surface only—no CLI, HTTP endpoints, or long-lived services. Black (line length 100) remains the only line-length enforcement; readability limits are handled via code review guidance.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Initialize repository plumbing, settings, and scaffolding required by all stories.
 
-- [ ] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic`, `pydantic-settings`, `typer`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
-- [ ] T002 Initialize package skeleton `src/promptic/__init__.py` and subpackages (`blueprints`, `instructions`, `pipeline`, `adapters`, `context`, `settings`, `cli`).
+- [ ] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
+- [ ] T002 Initialize package skeleton `src/promptic/__init__.py` and subpackages (`blueprints`, `instructions`, `pipeline`, `adapters`, `context`, `settings`, `sdk`).
 - [ ] T003 Configure formatting and linting (`black`, `isort`, `mypy`) plus `pre-commit` hooks in `.pre-commit-config.yaml`.
 - [ ] T004 [P] Add `ContextEngineSettings` using `pydantic-settings` in `src/promptic/settings/base.py` with filesystem roots, adapter registry config, and size budgets.
-- [ ] T005 [P] Scaffold Typer CLI entrypoint `src/promptic/cli/main.py` with placeholder commands for `blueprint` and `pipeline`.
+- [ ] T005 [P] Scaffold SDK façade module `src/promptic/sdk/api.py` with placeholder functions for blueprint and pipeline workflows.
 - [ ] T006 Add base test layout (`tests/unit`, `tests/integration`, `tests/contract`) and configure `pytest.ini` with markers (`unit`, `integration`, `contract`).
 - [ ] T007 Create docs directory `docs_site/context-engineering/` with initial stubs (`blueprint-guide.md`, `adapter-guide.md`, `execution-recipes.md`).
 
@@ -51,24 +51,24 @@
 
 **Goal**: Designers can author hierarchical blueprints (prompt + instruction blocks + slots) and preview merged contexts without touching Python.
 
-**Independent Test**: Using CLI + YAML/Markdown assets only, author a 5-step blueprint with nested instructions and preview it with sample data; preview output shows every referenced instruction and warns on missing assets.
+**Independent Test**: Using the Python SDK + YAML/Markdown assets only, author a 5-step blueprint with nested instructions and preview it with sample data; preview output shows every referenced instruction and warns on missing assets.
 
 ### Tests for User Story 1 (MANDATORY) ⚠️
 
-- [ ] T017 [P] [US1] Contract test verifying the CLI/SDK blueprint preview command (`promptic blueprint preview` calling `ContextPreviewer`) in `tests/contract/test_blueprint_preview.py`.
-- [ ] T018 [P] [US1] Integration test running CLI preview end-to-end with sample assets in `tests/integration/test_blueprint_preview_cli.py`.
+- [ ] T017 [P] [US1] Contract test verifying the SDK blueprint preview API (`promptic.sdk.blueprints.preview_blueprint`) in `tests/contract/test_blueprint_preview_sdk.py`.
+- [ ] T018 [P] [US1] Integration test running the preview workflow end-to-end with sample assets via SDK helpers in `tests/integration/test_blueprint_preview_sdk.py`.
 - [ ] T019 [US1] [P] Unit tests for blueprint builder + serializer edge cases in `tests/unit/blueprints/test_builder.py`.
 
 ### Implementation for User Story 1
 
 - [ ] T020 [US1] Implement `BlueprintBuilder` service in `src/promptic/pipeline/builder.py` handling YAML ingestion and schema validation.
 - [ ] T021 [US1] Implement `ContextPreviewer` in `src/promptic/pipeline/previewer.py` merging prompt + instructions + placeholder data.
-- [ ] T022 [P] [US1] Create Typer commands `promptic blueprint new/preview` in `src/promptic/cli/blueprint.py` invoking builder + previewer.
+- [ ] T022 [P] [US1] Expose blueprint builder/previewer via SDK façade functions in `src/promptic/sdk/blueprints.py`.
 - [ ] T023 [P] [US1] Add filesystem instruction discovery + caching (LRU) in `src/promptic/instructions/cache.py`.
-- [ ] T024 [US1] Generate blueprint JSON Schema export command in `src/promptic/cli/blueprint_schema.py`.
+- [ ] T024 [US1] Generate blueprint JSON Schema export helper surfaced via SDK (e.g., `src/promptic/sdk/blueprints.py`).
 - [ ] T025 [US1] Implement preview formatting with `rich` highlighting unresolved placeholders in `src/promptic/context/rendering.py`.
-- [ ] T026 [US1] Write docs/tutorial for blueprint authoring + CLI usage in `docs_site/context-engineering/blueprint-guide.md`.
-- [ ] T027 [US1] Add logging instrumentation (`# AICODE-NOTE` for caching strategy) and ensure preview commands log used instruction IDs.
+- [ ] T026 [US1] Write docs/tutorial for blueprint authoring + SDK usage in `docs_site/context-engineering/blueprint-guide.md`.
+- [ ] T027 [US1] Add logging instrumentation (`# AICODE-NOTE` for caching strategy) and ensure preview helpers log used instruction IDs.
 
 **Checkpoint**: Blueprint authoring + preview experience complete and testable independently.
 
@@ -82,13 +82,13 @@
 
 ### Tests for User Story 2 (MANDATORY) ⚠️
 
-- [ ] T028 [P] [US2] Contract test for adapter registration CLI/SDK flows (`promptic adapter register` and registry API) in `tests/contract/test_adapter_registry.py`.
+- [ ] T028 [P] [US2] Contract test for adapter registration SDK flows (registry APIs) in `tests/contract/test_adapter_registry.py`.
 - [ ] T029 [P] [US2] Integration test that swaps CSV vs HTTP adapters and mock memory provider during preview/execution in `tests/integration/test_adapter_swaps.py`.
 - [ ] T030 [US2] Unit tests for adapter base classes + registry errors in `tests/unit/adapters/test_base.py`.
 
 ### Implementation for User Story 2
 
-- [ ] T031 [US2] Implement adapter registration CLI/SDK in `src/promptic/cli/adapter.py` exposing register/list commands.
+- [ ] T031 [US2] Implement adapter registration SDK utilities in `src/promptic/sdk/adapters.py` exposing register/list helpers.
 - [ ] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/`.
 - [ ] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/`.
 - [ ] T034 [US2] Extend pipeline preview/execution to resolve data/memory slots via registry in `src/promptic/pipeline/context_materializer.py`.
@@ -108,19 +108,19 @@
 
 ### Tests for User Story 3 (MANDATORY) ⚠️
 
-- [ ] T038 [P] [US3] Contract test for the CLI/SDK pipeline execution command (`promptic pipeline run` invoking `PipelineExecutor`) returning `ExecutionAck` and validating payload schema in `tests/contract/test_pipeline_execute.py`.
+- [ ] T038 [P] [US3] Contract test for the SDK pipeline execution API (`promptic.sdk.pipeline.run_pipeline`) returning `ExecutionAck` and validating payload schema in `tests/contract/test_pipeline_execute.py`.
 - [ ] T039 [P] [US3] Integration scenario test running the full 5-step pipeline with mock agent hooks in `tests/integration/test_pipeline_executor.py`.
 - [ ] T040 [US3] Unit tests for `PipelineExecutor` traversal + logging events in `tests/unit/pipeline/test_executor.py`.
 
 ### Implementation for User Story 3
 
 - [ ] T041 [US3] Implement `PipelineExecutor` in `src/promptic/pipeline/executor.py` supporting sequence/loop/branch semantics and structured logging.
-- [ ] T042 [US3] Add execution log writers (JSONL + CLI trace command) in `src/promptic/cli/pipeline.py`.
+- [ ] T042 [US3] Add execution log writers (JSONL + SDK trace helpers) in `src/promptic/pipeline/loggers.py`.
 - [ ] T043 [US3] Implement per-step policy enforcement (size budgets, optional branches) in `src/promptic/pipeline/policies.py`.
 - [ ] T044 [P] [US3] Provide mock agent integration hooks allowing custom callbacks per step in `src/promptic/pipeline/hooks.py`.
 - [ ] T045 [US3] Extend docs with execution recipes + troubleshooting in `docs_site/context-engineering/execution-recipes.md`.
 - [ ] T046 [US3] Ensure executor emits `# AICODE-NOTE` detailing design decisions around traversal order and error boundaries.
-- [ ] T047 [US3] Update quickstart to include pipeline run + trace commands and sample logs.
+- [ ] T047 [US3] Update quickstart to include pipeline run + trace SDK usage and sample logs.
 
 **Checkpoint**: Hierarchical execution complete, logs/audits in place, tests prove nested instruction handling.
 
@@ -133,7 +133,7 @@
 - [ ] T048 [P] Finalize documentation updates (docs_site pages, spec/plan adjustments) and close any outstanding `# AICODE-ASK` items.
 - [ ] T049 Harden error messages + exception mapping across blueprint/adapters/pipeline modules (`src/promptic/context/errors.py`).
 - [ ] T050 [P] Optimize hot paths (instruction caching, adapter batching) and add benchmarks in `tests/integration/test_performance.py`.
-- [ ] T051 Expand CLI UX (auto-complete, helpful errors) in `src/promptic/cli/main.py`.
+- [ ] T051 Expand SDK ergonomics (helper functions, rich error types) in `src/promptic/sdk/api.py`.
 - [ ] T052 [P] Add additional unit tests for uncovered branches reported by coverage in `tests/unit/`.
 - [ ] T053 Run `quickstart.md` end-to-end validation and capture output snapshots in `docs_site/context-engineering/`.
 - [ ] T054 Execute `pytest -m "unit or integration or contract"` and `pre-commit run --all-files`; attach evidence to PR.
@@ -157,14 +157,14 @@
 
 ### Within Each User Story
 - Tests written first (contract → integration → unit as applicable).
-- Models/components before CLI exposure.
+  - Models/components before public SDK exposure.
 - Logging/instrumentation added before docs updates.
 - Each story concludes with docs + logging updates so they stay independently demonstrable.
 
 ### Parallel Opportunities
 - Setup: T004 & T005 can run in parallel after T001–T003.
 - Foundational: T013–T015 can proceed concurrently once T008–T012 exist.
-- US1: Test tasks (T017–T019) can run in parallel; CLI and caching tasks (T022–T023) parallel after builder (T020).
+  - US1: Test tasks (T017–T019) can run in parallel; SDK façade and caching tasks (T022–T023) parallel after builder (T020).
 - US2: Adapter samples (T032–T033) parallelizable after registry enhancements (T010).
 - US3: Executor hooks (T044) can build in parallel with policies (T043) after base executor scaffolding (T041).
 
@@ -174,13 +174,13 @@
 
 ```bash
 # Run tests together (after scaffolding):
-pytest tests/contract/test_blueprint_preview.py
-pytest tests/integration/test_blueprint_preview_cli.py
+pytest tests/contract/test_blueprint_preview_sdk.py
+pytest tests/integration/test_blueprint_preview_sdk.py
 pytest tests/unit/blueprints/test_builder.py
 
 # Parallel implementation tracks:
 Track A: T020 (builder) → T021 (previewer)
-Track B: T022 (CLI) + T023 (instruction cache) once builder interfaces fixed
+Track B: T022 (SDK façade) + T023 (instruction cache) once builder interfaces fixed
 Track C: T024 (schema export) + T025 (rendering) + T026 docs
 ```
 
@@ -211,5 +211,5 @@ Track C: T024 (schema export) + T025 (rendering) + T026 docs
 
 ## Notes
 - Respect Constitution checklist (SOLID, docs, readability, tests, pre-commit).
-- Every CLI addition needs doc updates and `# AICODE-NOTE` comments for key trade-offs.
+- Every public SDK addition needs doc updates and `# AICODE-NOTE` comments for key trade-offs.
 - Keep tasks independent; stop after each story to validate tests + docs before moving forward.
