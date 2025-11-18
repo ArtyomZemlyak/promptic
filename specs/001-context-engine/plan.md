@@ -7,7 +7,7 @@
 
 ## Summary
 
-We will ship a Python 3.11+ library that lets designers compose full conversational contexts (prompt + reusable instructions + data slots + memory slots) as hierarchical blueprints, plug any data/memory providers through adapters, and execute pipelines where each step can recurse through its own instruction assets. The technical plan commits to clean layering (domain blueprints, use-case services, adapters), Pydantic-based schemas/settings, and deterministic tooling so we can iterate rapidly without rewriting architecture.
+We will ship a Python 3.11+ library that lets designers compose full conversational contexts (prompt + reusable instructions + data slots + memory slots) as hierarchical blueprints, plug any data/memory providers through adapters, and execute pipelines where each step can recurse through its own instruction assets. A dedicated `ContextMaterializer` use case will broker adapter registry lookups, caching, and error handling for both preview and execution flows so `ContextPreviewer` and `PipelineExecutor` stay focused on traversal logic. The technical plan commits to clean layering (domain blueprints, use-case services, adapters), Pydantic-based schemas/settings, and deterministic tooling so we can iterate rapidly without rewriting architecture.
 
 **Scope guardrail**: This release intentionally excludes HTTP/REST endpoints, CLI utilities, or persistent services. All consumer touchpoints are the Python SDK.
 
@@ -25,7 +25,7 @@ We will ship a Python 3.11+ library that lets designers compose full conversatio
 
 ## Constitution Check
 
-- **Architecture**: Domain layer holds `ContextBlueprint`, `InstructionNode`, slots, and value objects. Use cases (`BlueprintBuilder`, `ContextPreviewer`, `PipelineExecutor`) depend only on interfaces (`InstructionStore`, `DataSourceAdapter`, `MemoryProvider`). Interface adapters live under `adapters/` for filesystem, HTTP, vector DB, etc. No framework imports leak inward. Status: PASS.
+- **Architecture**: Domain layer holds `ContextBlueprint`, `InstructionNode`, slots, and value objects. Use cases (`BlueprintBuilder`, `ContextMaterializer`, `ContextPreviewer`, `PipelineExecutor`) depend only on interfaces (`InstructionStore`, `DataSourceAdapter`, `MemoryProvider`). `ContextMaterializer` centralizes registry access/caching so preview/execution flows do not reach directly into adapter layers. Interface adapters live under `adapters/` for filesystem, HTTP, vector DB, etc. No framework imports leak inward. Status: PASS.
 - **Testing Evidence**: Commit to unit suites for schema validation, adapter registries, executor traversal; integration suites for 5-step sample pipeline across two adapter implementations; contract suites ensuring adapters honor required async/sync signatures. All tests run via `pytest -m "unit or integration or contract"` with CI enforcement. Status: PASS.
 - **Quality Gates**: Black (line length 100), isort (profile black), mypy (strict optional), plus `pre-commit run --all-files` before each commit. Lint results captured in PR template. Status: PASS.
 - **Documentation & Traceability**: Update `docs_site/context-engineering/` with blueprint schema, adapter integration, execution walkthrough; ensure spec/plan/data-model/contracts stay in sync; capture architectural rationale in `# AICODE-NOTE` comments and research.md. Status: PASS.
@@ -56,7 +56,7 @@ src/
 └── promptic/
     ├── blueprints/            # Domain models + serialization
     ├── instructions/          # Instruction stores + caching
-    ├── pipeline/              # Use cases: builder, previewer, executor
+    ├── pipeline/              # Use cases: builder, materializer, previewer, executor
     ├── adapters/
     │   ├── data/
     │   └── memory/

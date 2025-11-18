@@ -14,6 +14,10 @@
 
 - Q: Which entrypoints are in scope (library vs CLI vs HTTP)? → A: Importable Python library only; no CLI or HTTP surfaces.
 
+### Session 2025-11-18
+
+- Q: Should `ContextMaterializer` be treated as a new use case or folded into existing preview/executor services? → A: Keep it as a dedicated registry-style module documented in the spec so layering remains explicit.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -56,7 +60,7 @@ Platform integrators connect arbitrary data streams and memory providers (files,
 
 **Independent Test**: With the same blueprint, swap in two different data providers (CSV vs. API) and a mock memory store to prove the pipeline still executes without code changes.
 
-**Architecture Impact**: Defines `DataSourceAdapter` and `MemoryProvider` interfaces plus adapter registry. Uses DIP so use cases depend on abstractions; open/closed principle ensures new adapters register without modifying core logic.
+**Architecture Impact**: Defines `DataSourceAdapter` and `MemoryProvider` interfaces plus adapter registry. Introduces a dedicated `ContextMaterializer` module in the use-case layer that orchestrates registry lookups for preview/execution flows so `ContextPreviewer` and `PipelineExecutor` stay focused on composition and traversal. Uses DIP so use cases depend on abstractions; open/closed principle ensures new adapters register without modifying core logic.
 
 **Quality Signals**: Contract tests for adapter interface compliance, integration test that feeds mock data/memory to render contexts, docs_site section “Registering connectors”, `# AICODE-NOTE` describing adapter lifecycle.
 
@@ -122,6 +126,7 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **MemorySlot**: Descriptor for recalling prior conversation or long-term facts, referencing a provider capability (e.g., vector search, key-value recall).
 - **DataSourceAdapter / MemoryProvider**: Interfaces plus concrete adapters responsible for fetching data/memory values when requested.
 - **PipelineExecutor**: Application service that walks the blueprint, orchestrates step execution, and produces resolved context packages for agents.
+- **ContextMaterializer**: Dedicated registry-style service that resolves data and memory slot requests by coordinating adapter lookups/caching; shared by `ContextPreviewer` and `PipelineExecutor` so those use cases remain focused on blueprint traversal rather than adapter management.
 
 ### Architecture & Quality Constraints *(from Constitution)*
 

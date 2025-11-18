@@ -19,13 +19,13 @@
 
 **Purpose**: Initialize repository plumbing, settings, and scaffolding required by all stories.
 
-- [ ] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
-- [ ] T002 Initialize package skeleton `src/promptic/__init__.py` and subpackages (`blueprints`, `instructions`, `pipeline`, `adapters`, `context`, `settings`, `sdk`).
-- [ ] T003 Configure formatting and linting (`black`, `isort`, `mypy`) plus `pre-commit` hooks in `.pre-commit-config.yaml`.
-- [ ] T004 [P] Add `ContextEngineSettings` using `pydantic-settings` in `src/promptic/settings/base.py` with filesystem roots, adapter registry config, and size budgets.
-- [ ] T005 [P] Scaffold SDK façade module `src/promptic/sdk/api.py` with placeholder functions for blueprint and pipeline workflows.
-- [ ] T006 Add base test layout (`tests/unit`, `tests/integration`, `tests/contract`) and configure `pytest.ini` with markers (`unit`, `integration`, `contract`).
-- [ ] T007 Create docs directory `docs_site/context-engineering/` with initial stubs (`blueprint-guide.md`, `adapter-guide.md`, `execution-recipes.md`).
+- [X] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
+- [X] T002 Initialize package skeleton `src/promptic/__init__.py` and subpackages (`blueprints`, `instructions`, `pipeline`, `adapters`, `context`, `settings`, `sdk`).
+- [X] T003 Configure formatting and linting (`black`, `isort`, `mypy`) plus `pre-commit` hooks in `.pre-commit-config.yaml`.
+- [X] T004 [P] Add `ContextEngineSettings` using `pydantic-settings` in `src/promptic/settings/base.py` with filesystem roots, adapter registry config, and size budgets.
+- [X] T005 [P] Scaffold SDK façade module `src/promptic/sdk/api.py` with placeholder functions for blueprint and pipeline workflows.
+- [X] T006 Add base test layout (`tests/unit`, `tests/integration`, `tests/contract`) and configure `pytest.ini` with markers (`unit`, `integration`, `contract`).
+- [X] T007 Create docs directory `docs_site/context-engineering/` with initial stubs (`blueprint-guide.md`, `adapter-guide.md`, `execution-recipes.md`).
 
 ---
 
@@ -33,15 +33,17 @@
 
 **Purpose**: Core domain models, adapters infrastructure, and logging needed before any story-specific work.
 
-- [ ] T008 Define domain models from data-model.md in `src/promptic/blueprints/models.py` (ContextBlueprint, BlueprintStep, InstructionNode, DataSlot, MemorySlot, AdapterRegistration, ExecutionLogEntry) with Pydantic validation.
-- [ ] T009 Implement instruction storage interfaces (`InstructionStore`, `InstructionResolver`) and filesystem-backed implementation in `src/promptic/instructions/store.py`.
-- [ ] T010 Implement adapter registry infrastructure (`BaseAdapter`, `BaseMemoryProvider`, registration API) in `src/promptic/adapters/registry.py` with plugin loading hooks.
-- [ ] T011 Build event logging utility emitting JSONL entries in `src/promptic/context/logging.py`.
-- [ ] T012 Implement blueprint serializer/deserializer (YAML + JSON Schema export) in `src/promptic/blueprints/serialization.py`.
-- [ ] T013 [P] Create validation services (`BlueprintValidator`) handling cycles, asset existence, and size budgets in `src/promptic/pipeline/validation.py`.
-- [ ] T014 [P] Add shared error types and result objects in `src/promptic/context/errors.py`.
-- [ ] T015 [P] Write foundational unit tests for models/registry/logging in `tests/unit/blueprints/test_models.py`, `tests/unit/adapters/test_registry.py`, `tests/unit/context/test_logging.py`.
-- [ ] T016 Document foundational architecture in `docs_site/context-engineering/blueprint-guide.md` and `adapter-guide.md` sections describing domain layering and registries.
+- [X] T008 Define domain models from data-model.md in `src/promptic/blueprints/models.py` (ContextBlueprint, BlueprintStep, InstructionNode, DataSlot, MemorySlot, AdapterRegistration, ExecutionLogEntry) with Pydantic validation.
+- [X] T009 Implement instruction storage interfaces (`InstructionStore`, `InstructionResolver`) and filesystem-backed implementation in `src/promptic/instructions/store.py`.
+- [X] T010 Implement adapter registry infrastructure (`BaseAdapter`, `BaseMemoryProvider`, registration API) in `src/promptic/adapters/registry.py` with plugin loading hooks.
+- [X] T010a Implement dedicated `ContextMaterializer` use case in `src/promptic/pipeline/context_materializer.py` to broker adapter registry lookups, caching, and structured errors for preview/execution flows.
+- [X] T011 Build event logging utility emitting JSONL entries in `src/promptic/context/logging.py`.
+- [X] T012 Implement blueprint serializer/deserializer (YAML + JSON Schema export) in `src/promptic/blueprints/serialization.py`.
+- [X] T013 [P] Create validation services (`BlueprintValidator`) handling cycles, asset existence, and size budgets in `src/promptic/pipeline/validation.py`.
+- [X] T014 [P] Add shared error types and result objects in `src/promptic/context/errors.py`.
+- [X] T015 [P] Write foundational unit tests for models/registry/logging in `tests/unit/blueprints/test_models.py`, `tests/unit/adapters/test_registry.py`, `tests/unit/context/test_logging.py`.
+- [X] T015a [P] Add unit tests for `ContextMaterializer` cache/error paths in `tests/unit/pipeline/test_context_materializer.py`.
+- [X] T016 Document foundational architecture in `docs_site/context-engineering/blueprint-guide.md` and `adapter-guide.md` sections describing domain layering, registries, and the `ContextMaterializer` role.
 
 **Checkpoint**: Domain + infrastructure ready; user stories can proceed in parallel.
 
@@ -91,7 +93,7 @@
 - [ ] T031 [US2] Implement adapter registration SDK utilities in `src/promptic/sdk/adapters.py` exposing register/list helpers.
 - [ ] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/`.
 - [ ] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/`.
-- [ ] T034 [US2] Extend pipeline preview/execution to resolve data/memory slots via registry in `src/promptic/pipeline/context_materializer.py`.
+- [ ] T034 [US2] Wire `ContextPreviewer` and `PipelineExecutor` to call `ContextMaterializer` for all data/memory slot resolution so only `src/promptic/pipeline/context_materializer.py` talks to the adapter registry.
 - [ ] T035 [US2] Implement error handling + retries for adapter failures in `src/promptic/context/errors.py`.
 - [ ] T036 [US2] Document adapter lifecycle + configuration (Pydantic settings examples) in `docs_site/context-engineering/adapter-guide.md`.
 - [ ] T037 [US2] Update quickstart (`quickstart.md`) with examples showing adapter registration + swapping.
