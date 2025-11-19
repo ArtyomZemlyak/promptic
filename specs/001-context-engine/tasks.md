@@ -132,13 +132,35 @@
 
 **Purpose**: Repo-wide improvements, hardening, and evidence gathering.
 
-- [ ] T048 [P] Finalize documentation updates (docs_site pages, spec/plan adjustments) and close any outstanding `# AICODE-ASK` items.
-- [ ] T049 Harden error messages + exception mapping across blueprint/adapters/pipeline modules (`src/promptic/context/errors.py`).
-- [ ] T050 [P] Optimize hot paths (instruction caching, adapter batching) and add benchmarks in `tests/integration/test_performance.py`.
-- [ ] T051 Expand SDK ergonomics (helper functions, rich error types) in `src/promptic/sdk/api.py`.
-- [ ] T052 [P] Add additional unit tests for uncovered branches reported by coverage in `tests/unit/`.
-- [ ] T053 Run `quickstart.md` end-to-end validation and capture output snapshots in `docs_site/context-engineering/`.
-- [ ] T054 Execute `pytest -m "unit or integration or contract"` and `pre-commit run --all-files`; attach evidence to PR.
+- [X] T048 [P] Finalize documentation updates (docs_site pages, spec/plan adjustments) and close any outstanding `# AICODE-ASK` items.
+- [X] T049 Harden error messages + exception mapping across blueprint/adapters/pipeline modules (`src/promptic/context/errors.py`).
+- [X] T050 [P] Optimize hot paths (instruction caching, adapter batching) and add benchmarks in `tests/integration/test_performance.py`.
+- [X] T051 Expand SDK ergonomics (helper functions, rich error types) in `src/promptic/sdk/api.py`.
+- [X] T052 [P] Add additional unit tests for uncovered branches reported by coverage in `tests/unit/`.
+- [X] T053 Run `quickstart.md` end-to-end validation and capture output snapshots in `docs_site/context-engineering/`.
+- [X] T054 Execute `pytest -m "unit or integration or contract"` and `pre-commit run --all-files`; attach evidence to PR.
+
+---
+
+## Phase 6: Instruction Provider Fallbacks (Scope: CHK016)
+
+**Goal**: Define and enforce `InstructionFallbackPolicy` (`error`, `warn`, `noop`) so instruction providers can swap without editing core modules while emitting structured diagnostics, placeholders, and logs.
+
+**Independent Test**: Swap filesystem and HTTP instruction providers, force an outage, and prove previews/executions continue per fallback configuration, recording `fallback_events` without modifying blueprint or core classes.
+
+### Tests for Instruction Fallbacks (MANDATORY) ⚠️
+
+- [X] T055 [P] Add contract coverage for fallback diagnostics by extending `tests/contract/test_blueprint_preview_sdk.py` and `tests/contract/test_pipeline_execute.py` with scenarios that assert `fallback_events` and “no core edits” guidance in responses.
+- [X] T056 [P] Extend `tests/integration/test_adapter_swaps.py` (or add `test_instruction_fallbacks.py`) to simulate warn/noop policies across filesystem + HTTP providers, verifying placeholders and execution logs capture `instruction_fallback` events.
+- [X] T057 Add unit tests for materializer fallback helpers in `tests/unit/pipeline/test_context_materializer.py` and executor logging in `tests/unit/pipeline/test_executor.py`, ensuring placeholders, retries, and warnings follow the configured policy.
+
+### Implementation for Instruction Fallbacks
+
+- [X] T058 Update blueprint/data models and materializer orchestration (`src/promptic/blueprints/models.py`, `src/promptic/pipeline/context_materializer.py`, `src/promptic/pipeline/executor.py`) to accept `InstructionFallbackConfig`, wire placeholder rendering, and route events through structured logs.
+- [X] T059 Emit fallback diagnostics in logging/SDK layers by enhancing `src/promptic/context/logging.py`, `src/promptic/pipeline/loggers.py`, and `src/promptic/sdk/api.py` so preview/execution helpers expose `fallback_events` alongside existing outputs.
+- [X] T060 Refresh developer guidance by updating `src/promptic/sdk/blueprints.py`, `src/promptic/sdk/pipeline.py`, `specs/001-context-engine/quickstart.md`, and `docs_site/context-engineering/{adapter-guide.md,execution-recipes.md}` with examples showing how to configure fallback policies and interpret warnings.
+
+**Checkpoint**: Fallback semantics documented, enforced via tests, and observable through SDK responses/logs so CHK016 is satisfied.
 
 ---
 

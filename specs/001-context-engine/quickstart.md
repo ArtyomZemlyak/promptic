@@ -10,7 +10,6 @@ Populate `.env` with the `ContextEngineSettings` fields (filesystem root, defaul
 ## 2. Author a Blueprint
 Create `blueprints/research_flow.yaml`:
 ```yaml
-id: research-flow
 name: Research Flow
 prompt_template: >
   You are a structured research assistant...
@@ -61,7 +60,33 @@ settings.adapter_registry.memory_defaults["vector_db"] = {"values": ["vector://f
 ```
 Adapters inherit from `BaseAdapter`/`BaseMemoryProvider` and accept `BaseSettings` configs. Registration can run at import time or via plugin entry points.
 
-## 4. Preview & Execute
+## 4. Configure Instruction Fallbacks
+Optional instructions (e.g., experimental guidance hosted in a remote store) can now declare fallback policies directly in the blueprint so adapter swaps never require core code edits. Extend the YAML from step 2:
+```yaml
+global_instructions:
+  - instruction_id: root_guidance
+    fallback:
+      mode: warn
+      placeholder: "[root guidance temporarily unavailable]"
+steps:
+  - step_id: collect
+    instruction_refs:
+      - instruction_id: collect_step
+        fallback:
+          mode: noop
+          log_key: collect_step_missing
+```
+Register providers with their supported modes:
+```python
+sdk_adapters.register_http_instruction_store(
+    key="remote_store",
+    registry=registry,
+    fallback_policies={"error", "warn"},
+)
+```
+If the HTTP store goes down, previews/executions emit a `fallback_event`, inject the placeholder (for `warn`) or empty string (for `noop`), and continue so long as the policy allows it. All events are logged via `InstructionFallbackPolicy` diagnostics.
+
+## 5. Preview & Execute
 ```python
 from promptic.sdk import blueprints, pipeline
 from promptic.sdk.api import build_materializer
@@ -73,6 +98,8 @@ preview = blueprints.preview_blueprint(
     materializer=materializer,
 )
 print(preview.rendered_context)
+for event in preview.fallback_events:
+    print("fallback:", event.mode, event.instruction_id)
 
 run = pipeline.run_pipeline(
     blueprint_id="research-flow",
@@ -81,14 +108,19 @@ run = pipeline.run_pipeline(
 )
 for event in run.events:
     print(event.event_type, event.payload)
+for event in run.fallback_events:
+    print("fallback:", event.mode, event.instruction_id)
 ```
 Both `blueprints.preview_blueprint` and `pipeline.run_pipeline` resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated even in US1. Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`. To swap sources, register a different adapter under the same key (e.g., `sdk_adapters.register_http_loader("csv_loader", registry=AdapterRegistry())`) and provide new defaults—no blueprint changes required.
 
-## 5. Audit Outputs
+`preview.fallback_events` and `run.fallback_events` expose structured diagnostics for each degraded instruction. Every event includes the `instruction_id`, fallback `mode`, `message`, and the placeholder text that was rendered (warn) or recorded (noop). Pipeline runs also emit `instruction_fallback` entries inside `ExecutionResponse.events`, so log processors can correlate degraded instructions with downstream effects.
+
+## 6. Audit Outputs
 - Inspect `logs/*.jsonl` for `size_warning` or `error` events.
 - Use `pipeline.trace_run(run_id, step_id="summarize", item_index=2)` (SDK helper) to replay nested instructions for a specific item.
 
-## 6. Iterate
+## 7. Iterate
 - Update YAML/Markdown assets; no Python edits required unless adding adapters.
 - Re-run tests: `pytest tests -m "unit or integration or contract"`.
 - Run `pre-commit run --all-files` before pushing.
+- Validation evidence for this flow lives in `docs_site/context-engineering/quickstart-validation.md`.

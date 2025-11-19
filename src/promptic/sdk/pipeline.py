@@ -54,7 +54,10 @@ def run_pipeline(
         raise error
     artifact = result.unwrap()
     return ExecutionResponse(
-        run_id=artifact.run_id, events=artifact.events, warnings=result.warnings
+        run_id=artifact.run_id,
+        events=artifact.events,
+        warnings=result.warnings,
+        fallback_events=artifact.fallback_events,
     )
 
 

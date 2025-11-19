@@ -5,7 +5,7 @@ from typing import Any, Mapping, Sequence
 
 import pytest
 
-from promptic.blueprints import ContextBlueprint, InstructionNode, InstructionNodeRef
+from promptic.blueprints import ContextBlueprint, FallbackEvent, InstructionNode, InstructionNodeRef
 from promptic.context import OperationResult
 from promptic.sdk import blueprints as sdk_blueprints
 from promptic.sdk.api import PreviewResponse
@@ -13,9 +13,15 @@ from promptic.settings.base import ContextEngineSettings
 
 
 class StubMaterializer:
-    def __init__(self, instructions: Mapping[str, str]) -> None:
+    def __init__(
+        self,
+        instructions: Mapping[str, str],
+        *,
+        fallback_events: Sequence[FallbackEvent] | None = None,
+    ) -> None:
         self._instructions = instructions
         self.calls: list[tuple[str, Any]] = []
+        self._fallback_events = list(fallback_events or [])
 
     def resolve_instruction_refs(
         self, refs: Sequence[InstructionNodeRef]
@@ -61,6 +67,47 @@ class StubMaterializer:
 
     def reset_caches(self) -> None:  # pragma: no cover - compatibility hook
         pass
+
+    def prefetch_instructions(self, blueprint: ContextBlueprint) -> OperationResult[int]:
+        self.calls.append(("prefetch", blueprint.id))
+        return OperationResult.success(0)
+
+    def resolve_data_slots(
+        self,
+        blueprint: ContextBlueprint,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> OperationResult[dict[str, Any]]:
+        payload: dict[str, Any] = {}
+        warnings: list[str] = []
+        for slot in blueprint.data_slots:
+            result = self.resolve_data(blueprint, slot.name, overrides=overrides)
+            warnings.extend(result.warnings)
+            if not result.ok:
+                return result
+            payload[slot.name] = result.unwrap()
+        return OperationResult.success(payload, warnings=warnings)
+
+    def resolve_memory_slots(
+        self,
+        blueprint: ContextBlueprint,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> OperationResult[dict[str, Any]]:
+        payload: dict[str, Any] = {}
+        warnings: list[str] = []
+        for slot in blueprint.memory_slots:
+            result = self.resolve_memory(blueprint, slot.name, overrides=overrides)
+            warnings.extend(result.warnings)
+            if not result.ok:
+                return result
+            payload[slot.name] = result.unwrap()
+        return OperationResult.success(payload, warnings=warnings)
+
+    def consume_fallback_events(self) -> list[FallbackEvent]:
+        events = list(self._fallback_events)
+        self._fallback_events.clear()
+        return events
 
 
 def _write_blueprint_assets(tmp_path: Path) -> ContextEngineSettings:
@@ -128,3 +175,27 @@ def test_preview_blueprint_uses_injected_materializer(tmp_path: Path) -> None:
     assert ("memory", "prior") in memory_calls
 
     assert "Collect" in response.rendered_context
+
+
+def test_preview_response_includes_fallback_events(tmp_path: Path) -> None:
+    settings = _write_blueprint_assets(tmp_path)
+    fallback_event = FallbackEvent(
+        instruction_id="collect",
+        mode="warn",
+        message="warn fallback applied",
+        placeholder_used="[collect missing]",
+        log_key="collect",
+    )
+    materializer = StubMaterializer(
+        {"intro": "Intro", "collect": "Collect"}, fallback_events=[fallback_event]
+    )
+
+    response = sdk_blueprints.preview_blueprint(
+        blueprint_id="demo",
+        materializer=materializer,  # type: ignore[arg-type]
+        settings=settings,
+        sample_data={"sources": [{"title": "Sample Doc"}]},
+        sample_memory={"prior": ["Finding A"]},
+    )
+
+    assert response.fallback_events == [fallback_event]

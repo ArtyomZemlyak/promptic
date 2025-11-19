@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, Iterable, List, Literal, Optional, Set
 from uuid import UUID, uuid4
 
@@ -27,11 +28,35 @@ class Condition(BaseModel):
     description: Optional[str] = Field(default=None, max_length=160)
 
 
+class InstructionFallbackPolicy(str, Enum):
+    ERROR = "error"
+    WARN = "warn"
+    NOOP = "noop"
+
+
+class InstructionFallbackConfig(BaseModel):
+    """Configuration describing how to degrade when an instruction cannot load."""
+
+    mode: InstructionFallbackPolicy = Field(default=InstructionFallbackPolicy.ERROR)
+    placeholder: Optional[str] = Field(default=None, max_length=512)
+    log_key: Optional[str] = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_\-]+$"
+    )
+
+    @model_validator(mode="after")
+    def _validate_placeholder(self) -> "InstructionFallbackConfig":
+        if self.mode in {InstructionFallbackPolicy.WARN, InstructionFallbackPolicy.NOOP}:
+            if not self.placeholder:
+                raise ValueError("placeholder is required when warn/noop fallback is used.")
+        return self
+
+
 class InstructionNodeRef(BaseModel):
     """Reference to an instruction asset by identifier/version."""
 
     instruction_id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_\-./]+$")
     version: Optional[str] = Field(default=None, min_length=1)
+    fallback: Optional[InstructionFallbackConfig] = None
 
 
 class InstructionNode(BaseModel):
@@ -45,6 +70,9 @@ class InstructionNode(BaseModel):
     checksum: str = Field(..., min_length=32, max_length=64)
     locale: str = Field(default="en-US", min_length=2, max_length=16)
     version: str = Field(default="0.0.1", min_length=1, max_length=32)
+    provider_key: str = Field(default="filesystem_default", min_length=1, max_length=64)
+    fallback_policy: InstructionFallbackPolicy = Field(default=InstructionFallbackPolicy.ERROR)
+    placeholder_template: Optional[str] = Field(default=None, max_length=512)
 
 
 class DataSlot(BaseModel):
@@ -100,6 +128,7 @@ class AdapterRegistration(BaseModel):
     entry_point: Optional[str] = None
     config_model: Optional[type[BaseSettings]] = None
     capabilities: Set[str] = Field(default_factory=set)
+    fallback_policies: Set[str] = Field(default_factory=set)
 
 
 class ExecutionLogEntry(BaseModel):
@@ -109,6 +138,7 @@ class ExecutionLogEntry(BaseModel):
     step_id: str = Field(..., min_length=1)
     event_type: Literal[
         "instruction_loaded",
+        "instruction_fallback",
         "data_resolved",
         "memory_resolved",
         "size_warning",
@@ -116,6 +146,18 @@ class ExecutionLogEntry(BaseModel):
     ]
     payload: Dict[str, Any] = Field(default_factory=dict)
     reference_ids: List[str] = Field(default_factory=list)
+
+
+class FallbackEvent(BaseModel):
+    """Structured representation of an instruction fallback that callers can inspect."""
+
+    instruction_id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_\-./]+$")
+    mode: InstructionFallbackPolicy
+    message: str = Field(..., min_length=1)
+    placeholder_used: Optional[str] = Field(default=None, max_length=512)
+    log_key: Optional[str] = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_\-]+$"
+    )
 
 
 class ContextBlueprint(BaseModel):
@@ -186,6 +228,9 @@ __all__ = [
     "ContextBlueprint",
     "DataSlot",
     "ExecutionLogEntry",
+    "FallbackEvent",
+    "InstructionFallbackConfig",
+    "InstructionFallbackPolicy",
     "InstructionNode",
     "InstructionNodeRef",
     "MemorySlot",

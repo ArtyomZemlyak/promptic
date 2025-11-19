@@ -99,6 +99,35 @@ On the memory side we ship:
 Applications can still subclass the base adapters when they need custom logic; the helpers
 simply reduce boilerplate for the common cases outlined in the spec.
 
+## Instruction Provider Fallback Policies
+
+Instruction providers (filesystem stores, HTTP loaders, vector-backed instruction hubs) must now declare the fallback behaviors they support so blueprints can degrade predictably without editing core modules. Each `AdapterRegistration` may include a `fallback_policies` set describing which `InstructionFallbackPolicy` modes it honors:
+
+```python
+sdk_adapters.register_http_instruction_store(
+    key="remote_store",
+    registry=registry,
+    fallback_policies={"error", "warn"},
+)
+```
+
+Blueprint authors (or SDK helpers) attach fallback configs per instruction reference:
+
+```yaml
+instruction_refs:
+  - instruction_id: summarize_step
+    fallback:
+      mode: warn
+      placeholder: "[summaries delayed]"
+```
+
+During preview/execution the `ContextMaterializer` invokes the provider. If the provider fails and the blueprint allows `warn`/`noop`, the materializer records an `instruction_fallback` event, injects the placeholder (or empty string), and continues orchestration. Providers that only support `error` preserve fail-fast semantics. This keeps SRP intact—use cases never import adapters directly, and swapping providers simply means registering a new implementation that advertises the same fallback modes.
+
+SDK responses now surface these degradations explicitly:
+
+- `PreviewResponse.fallback_events` and `ExecutionResponse.fallback_events` contain `instruction_id`, `mode`, `message`, and the rendered placeholder so clients can render UI notices or audits.
+- `ExecutionResponse.events` includes `instruction_fallback` log entries, making it trivial to ship JSONL traces to observability stacks without guessing which step degraded.
+
 ## Consumption via the Context Materializer
 
 `ContextMaterializer.resolve_data()` and `resolve_memory()` request adapters by
@@ -114,3 +143,20 @@ and configurable retries (`ContextEngineSettings.adapter_registry.max_retries`).
 configuration payloads for each adapter key live under
 `ContextEngineSettings.adapter_registry.{data_defaults,memory_defaults}` so projects can
 lean on `pydantic-settings` rather than hardcoding parameters in code.
+
+## Batching, Reuse & Telemetry
+
+During the Polish phase the materializer learned how to batch adapter usage per
+configuration. Instances are now cached per adapter key + config fingerprint, which
+means running both preview and pipeline flows only instantiates each adapter once.
+The new `MaterializerStats` dataclass exposes cache hits, misses, and adapter
+instantiation counts so performance regressions surface immediately:
+
+```python
+stats = materializer.snapshot_stats()
+print("Data hits:", stats.data_cache_hits, "adapter instances:", stats.data_adapter_instances)
+```
+
+These stats are what power the new integration benchmark (`tests/integration/test_performance.py`)
+and the quickstart validation doc, giving adapter owners concrete evidence that their
+connectors behave within the promised latency budget.

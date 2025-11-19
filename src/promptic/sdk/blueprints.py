@@ -43,6 +43,7 @@ def preview_blueprint(
         rendered_context=artifact.rendered_context,
         warnings=warnings,
         instruction_ids=artifact.instruction_ids,
+        fallback_events=artifact.fallback_events,
     )
 
 

@@ -61,7 +61,7 @@ Platform integrators connect arbitrary data streams and memory providers (files,
 
 **Independent Test**: With the same blueprint, swap in two different data providers (CSV vs. API) and a mock memory store to prove the pipeline still executes without code changes.
 
-**Architecture Impact**: Defines `DataSourceAdapter` and `MemoryProvider` interfaces plus adapter registry. Introduces a dedicated `ContextMaterializer` module in the use-case layer that orchestrates registry lookups for preview/execution flows so `ContextPreviewer` and `PipelineExecutor` stay focused on composition and traversal. Uses DIP so use cases depend on abstractions; open/closed principle ensures new adapters register without modifying core logic.
+**Architecture Impact**: Defines `DataSourceAdapter` and `MemoryProvider` interfaces plus adapter registry. Introduces a dedicated `ContextMaterializer` module in the use-case layer that orchestrates registry lookups for preview/execution flows so `ContextPreviewer` and `PipelineExecutor` stay focused on composition and traversal. Uses DIP so use cases depend on abstractions; open/closed principle ensures new adapters register without modifying core logic. Instruction providers must declare supported `InstructionFallbackPolicy` modes (`error`, `warn`, `noop`) so previews/executions can degrade predictably without editing core modules.
 
 **Quality Signals**: Contract tests for adapter interface compliance, integration test that feeds mock data/memory to render contexts, docs_site section “Registering connectors”, `# AICODE-NOTE` describing adapter lifecycle.
 
@@ -96,6 +96,7 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 ### Edge Cases
 
 - Missing instruction asset: executor must fail fast with a descriptive error and suggest which file path is expected.
+- Instruction provider fallback: when a configured provider cannot return content, the materializer applies the blueprint’s fallback policy (`error`, `warn`, `noop`), injects placeholders if needed, and logs the degradation for audit.
 - Circular instruction references: blueprint validator rejects graphs with cycles and highlights offending nodes.
 - Extremely large data payloads: adapters stream or chunk data so context rendering can enforce size budgets per step.
 - Memory provider unavailable mid-run: executor retries once, then records the failure summary for the agent to decide fallback.
@@ -113,7 +114,7 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **FR-001**: The library MUST let users define a context blueprint composed of prompt text, instruction blocks, data slots, and memory slots in a single schema.
 - **FR-002**: The blueprint engine MUST support hierarchical step structures, including nested instructions and repeating steps for item collections.
 - **FR-003**: The system MUST expose pluggable interfaces for data sources and memory providers so integrators can register custom adapters without modifying core modules, and preview/execution use cases must interact with those adapters only through the `ContextMaterializer` abstraction starting in US1.
-- **FR-004**: The executor MUST resolve instruction references at runtime (e.g., loading `3_step_instruction`) and provide transparent caching to avoid redundant file reads within a run.
+- **FR-004**: The executor MUST resolve instruction references at runtime (e.g., loading `3_step_instruction`), provide transparent caching to avoid redundant file reads within a run, and enforce `InstructionFallbackPolicy` semantics (`error`, `warn`, `noop`) so alternate instruction providers can swap without modifying core modules.
 - **FR-005**: The library MUST render a preview of the fully assembled context for any blueprint + sample data combination, highlighting unresolved placeholders.
 - **FR-006**: Validation MUST detect circular references, missing assets, or slot mismatches before execution and return actionable error messages.
 - **FR-007**: The system MUST log every instruction/data/memory asset accessed per run so agents can audit which guidance influenced each output.
@@ -159,3 +160,5 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **SC-004**: Preview rendering flags >95% of validation issues (missing assets, cycles, oversize contexts) before runtime execution.
 - **SC-005**: All related pytest suites (unit, integration, contract) pass locally and in CI with evidence linked in the PR.
 - **SC-006**: Relevant docs_site pages, specs, and inline comments are updated and reviewed alongside the code change.
+- **SC-007**: Performance instrumentation (`MaterializerStats`, instruction warm-up) and SDK error mapping (`describe_error`, `preview_blueprint_safe`) surface actionable diagnostics for the quickstart scenario, evidenced by `tests/integration/test_performance.py` and `tests/integration/test_quickstart_validation.py`.
+- **SC-008**: Swapping instruction providers (filesystem ↔ remote) triggers at least one `warn` fallback path captured in preview/execution logs, with contract + integration tests proving the swap requires no core module modifications.

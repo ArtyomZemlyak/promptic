@@ -1,33 +1,44 @@
-# Implementation Plan: Context Engineering Library
+# Implementation Plan: Instruction Provider Fallbacks
 
-**Branch**: `001-context-engine` | **Date**: 2025-11-18 | **Spec**: [spec.md](./spec.md)  
+**Branch**: `001-context-engine` | **Date**: 2025-11-19 | **Spec**: [`spec.md`](./spec.md)  
 **Input**: Feature specification from `/specs/001-context-engine/spec.md`
 
-**Note**: Follow the `promptic Constitution` for clean layering, SOLID responsibilities, evidence-driven testing, automated gates, and documentation traceability.
+**Note**: This plan focuses on closing SOLID checklist gap **CHK016** by defining explicit fallback semantics when alternate instruction providers substitute into preview/execution flows.
 
 ## Summary
 
-Deliver a Python 3.11+ library that lets designers define hierarchical context blueprints, plug arbitrary data/memory adapters, and execute instruction pipelines through the SDK. A dedicated `ContextMaterializer` (built in Phase 2 foundations) brokers every data/memory lookup so `ContextPreviewer`, `PipelineExecutor`, and SDK façades stay insulated from adapters. Per the latest clarification, `BlueprintBuilder` (T020) and `ContextPreviewer` (T021) must depend on the `ContextMaterializer` abstraction from their first commit, and unit/contract tests will assert that no preview/execution flow touches adapter registries directly. US2 later wires additional runtime behaviors (T034), but layering discipline is enforced Day 1.
+Define contractual fallback policies for instruction providers so blueprint previews and pipeline executions remain LSP-compliant when swapping instruction stores. Work adds policy metadata to instruction assets/materializer contracts, updates acceptance tests/docs, and wires SDK guidance so adapters can degrade predictably (error, warn-with-placeholder, noop). Deliverables include updated spec/plan/tasks, expanded research, data model changes, contract additions, and quickstart guidance proving adapters can swap without core code edits.
 
 ## Technical Context
 
+<!--
+  ACTION REQUIRED: Replace the content in this section with the technical details
+  for the project. The structure here is presented in advisory capacity to guide
+  the iteration process.
+-->
+
 **Language/Version**: Python 3.11 (CPython)  
-**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, plus optional adapter extras (`httpx`, `pandas`, `faiss-cpu`)  
-**Storage**: Local filesystem for instruction assets by default; adapters abstract HTTP/file/vector sources for data/memory. No persistent DB bundled.  
-**Testing**: `pytest`, `pytest-asyncio`, `hypothesis` (schema fuzzing), contract tests exercising SDK façades, integration suites for 5-step blueprints, unit suites per module.  
-**Target Platform**: Linux/macOS developer machines, GitHub Actions CI; library consumed via importable SDK (no services).  
-**Project Type**: Single Python package under `src/promptic/` with clean architecture subpackages (domain, pipeline, adapters, SDK).  
-**Performance Goals**: Render 5-step blueprints with ≤100 instruction nodes in <500 ms; adapter registry init <200 ms; blueprint validation handles 1k nodes in <2 s; execution logs stream without blocking.  
-**Constraints**: In-memory context payloads <256 MB via per-step budgets; zero direct network calls from domain/use-case layers; `ContextMaterializer` remains sole adapter touchpoint; functions <100 logical lines; follow Black/isort.  
-**Scale/Scope**: Support dozens of concurrent blueprints per process with nested pipelines; MVP ships US1 fully, US2 adapter swaps, US3 execution loops; adapters can be extended without modifying core.
+**Primary Dependencies**: `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis`  
+**Storage**: Local filesystem instruction assets by default; adapters encapsulate HTTP/CSV/vector stores  
+**Testing**: `pytest` (unit/integration/contract) with adapter/materializer stubs for substitution scenarios  
+**Target Platform**: Importable Python SDK (no CLI/HTTP services) running on Linux/macOS dev hosts + CI  
+**Project Type**: Single Python package under `src/promptic/` with clean architecture subpackages  
+**Performance Goals**: Preserve existing preview/execution budgets (≤500 ms preview for 5-step blueprints; adapter registry init <200 ms) while adding fallback checks with <5% overhead  
+**Constraints**: Context payloads <256 MB, functions <100 logical lines, adapters accessed only via `ContextMaterializer`  
+**Scale/Scope**: Support dozens of blueprints per process; multiple instruction providers (filesystem + remote) can coexist without core changes
 
 ## Constitution Check
 
-- **Architecture**: Domain layer hosts `ContextBlueprint`, `InstructionNode`, slots, and value objects. Use cases (`BlueprintBuilder`, `ContextPreviewer`, `PipelineExecutor`, `ContextMaterializer`) depend only on interfaces like `InstructionStore`, `DataSourceAdapter`, `MemoryProvider`. All slot resolution flows (even in US1) inject `ContextMaterializer` so adapter registries remain encapsulated per Principle P1; T034 in US2 expands orchestration but does not change the dependency graph. Any deviation requires `# AICODE-NOTE` justification.
-- **Testing Evidence**: Contract + integration suites (`T017`–`T019`, `T028`–`T040`) cover blueprint preview, adapter swaps, and executor traversal. Unit suites (`tests/unit/pipeline/test_context_materializer.py`, preview/executor tests) mock adapters through the materializer to prove no direct registry access. Regression tests capture failure cases like missing assets, circular steps, and adapter errors.
-- **Quality Gates**: Black (line length 100), isort (profile black), mypy (strict optional), and `pre-commit run --all-files` gate every commit. CI runs `pytest -m "unit or integration or contract"` plus coverage thresholds. Lint/format failures block merges (Principle P3).
-- **Documentation & Traceability**: Update `docs_site/context-engineering/` guides (blueprint, adapter, execution), `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, contracts, and inline `# AICODE-*` comments whenever behavior changes. Record clarification answers under `## Clarifications` ASAP (Principle P4).
-- **Readability & DX**: Keep modules ≤400 LOC, functions <100 logical lines, and naming descriptive (`render_context_preview`). Provide SDK façade helpers so designers avoid touching low-level modules. Capture non-obvious logic with `# AICODE-NOTE` comments instead of clever abstractions (Principle P5).
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+- **Architecture**: Instruction fallback logic lives in the use-case layer (`ContextMaterializer` and `PipelineExecutor`). Domain models (`InstructionNode`, `InstructionProviderPolicy`) describe allowable degradation. SDK façade remains adapter-agnostic—only receives policy outcomes. No direct adapter imports outside materializer.
+- **Testing Evidence**:
+  - Unit: `tests/unit/pipeline/test_context_materializer.py` extended for fallback policies, plus new instruction cache/provider tests.
+  - Integration: `tests/integration/test_pipeline_executor.py` and `test_adapter_swaps.py` prove degraded runs still pass without core edits.
+  - Contract: `tests/contract/test_pipeline_execute.py` + new contract cases verifying structured fallback diagnostics.
+- **Quality Gates**: Run Black/isort with line length 100, `pytest -m "unit or integration or contract"`, and `pre-commit run --all-files` before committing.
+- **Documentation & Traceability**: Update `spec.md` (Edge Cases + FR-004), `plan.md`, `tasks.md`, `data-model.md`, `contracts/context-engineering.yaml`, `docs_site/context-engineering/adapter-guide.md`, `execution-recipes.md`, and quickstart fallback section. Capture rationale in `# AICODE-NOTE` near fallback code.
+- **Readability & DX**: Introduce `InstructionFallbackPolicy` enum + helper functions (<100 lines each). Reuse existing logging infrastructure for diagnostics instead of bespoke systems.
 
 ## Project Structure
 
@@ -35,69 +46,73 @@ Deliver a Python 3.11+ library that lets designers define hierarchical context b
 
 ```text
 specs/001-context-engine/
-├── plan.md
-├── research.md
-├── data-model.md
-├── quickstart.md
-├── spec.md
-├── tasks.md
+├── plan.md              # Updated with fallback strategy (this file)
+├── research.md          # Phase 0 findings (includes fallback semantics)
+├── data-model.md        # Phase 1 entity rules (to include fallback policy fields)
+├── quickstart.md        # Phase 1 guide (will gain fallback usage section)
 ├── contracts/
-│   └── context-engineering.yaml
-└── checklists/
-    ├── requirements.md
-    └── solid.md
+│   └── context-engineering.yaml  # Phase 1 API contracts
+└── tasks.md             # Produced separately by /speckit.tasks
 ```
 
 ### Source Code (repository root)
+<!--
+  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
+-->
 
 ```text
 src/
 └── promptic/
-    ├── __init__.py
     ├── adapters/
-    │   ├── __init__.py
-    │   ├── registry.py
     │   ├── data/
     │   └── memory/
     ├── blueprints/
-    │   ├── __init__.py
-    │   ├── models.py
-    │   └── serialization.py
-    ├── instructions/
-    │   ├── store.py
-    │   └── cache.py
-    ├── pipeline/
-    │   ├── builder.py
-    │   ├── previewer.py
-    │   ├── executor.py
-    │   ├── context_materializer.py
-    │   ├── validation.py
-    │   └── loggers.py
     ├── context/
-    │   ├── rendering.py
-    │   └── logging.py
-    ├── settings/
-    │   └── base.py
+    ├── instructions/
+    ├── pipeline/
     └── sdk/
-        ├── api.py
-        ├── adapters.py
-        ├── blueprints.py
-        └── pipeline.py
 
 tests/
-├── unit/
+├── contract/
 ├── integration/
-└── contract/
-
-docs_site/
-└── context-engineering/
-    ├── blueprint-guide.md
-    ├── adapter-guide.md
-    └── execution-recipes.md
+└── unit/
 ```
 
-**Structure Decision**: Single Python package with clean-architecture subpackages mirrors source-of-truth layering. Tests/documents mirror runtime directories so each user story remains independently testable/documented.
+**Structure Decision**: Single Python package with clean architecture layering; fallback work touches `instructions/`, `pipeline/context_materializer.py`, `pipeline/executor.py`, and SDK façades while keeping adapters isolated.
 
 ## Complexity Tracking
 
-No Constitution deviations anticipated; leave table empty unless future changes require exceptions.
+> **Fill ONLY if Constitution Check has violations that must be justified**
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| _None_ | — | — |
+
+## Phase 0: Outline & Research
+
+- Capture the CHK016 gap as a research question: “What observable fallback modes keep instruction providers LSP-compliant?”  
+- Summarize findings (filesystem vs remote store parity, diagnostics expectations) inside `research.md` with Decision/Rationale/Alternatives.  
+- Identify dependencies (existing `InstructionNode`, `ContextMaterializer`, logging) and ensure no new runtime tech is required.  
+- Output: updated `research.md` (already revised with fallback semantics).
+
+## Phase 1: Design & Contracts
+
+1. **Data Model updates** (`data-model.md`):
+   - Add `InstructionFallbackPolicy` enum and describe validation (default `error`).
+   - Document how policies attach to instruction providers or blueprint references.
+2. **Contracts** (`contracts/context-engineering.yaml`):
+   - Extend preview/execution responses to include `fallback_mode`, `warnings`, and `placeholder` payloads.
+   - Clarify adapter registration metadata for supported fallback policies.
+3. **Quickstart & Docs** (`quickstart.md`, `docs_site/context-engineering/{adapter-guide,execution-recipes}.md`):
+   - Add scenarios showing provider swap (filesystem → HTTP) that triggers `warn` fallback, including log snippet.
+4. **Agent context**:
+   - Run `.specify/scripts/bash/update-agent-context.sh cursor-agent` so shared memory records the new fallback requirement.
+
+## Phase 2: Planning Outcomes
+
+- Re-evaluate Constitution Check after design artifacts are updated; ensure SRP/OCP proof now includes fallback policies.  
+- Produce handoff summary for `/speckit.tasks` describing implementation/test/doc updates needed (materializer, executor, SDK, docs).  
+- Artifacts ready: `plan.md` (this file), refreshed `research.md`, plus TODOs for data-model, contracts, quickstart/doc updates.

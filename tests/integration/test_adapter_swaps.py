@@ -9,6 +9,7 @@ from typing import Any
 from promptic.adapters import AdapterRegistry
 from promptic.sdk import adapters as sdk_adapters
 from promptic.sdk import blueprints as sdk_blueprints
+from promptic.sdk import pipeline as sdk_pipeline
 from promptic.sdk.api import build_materializer
 from promptic.settings.base import AdapterRegistrySettings, ContextEngineSettings
 
@@ -36,6 +37,44 @@ steps:
     kind: sequence
     instruction_refs:
       - instruction_id: analyze
+data_slots:
+  - name: records
+    adapter_key: research_sources
+    schema:
+      type: array
+memory_slots:
+  - name: history
+    provider_key: research_memory
+""",
+        encoding="utf-8",
+    )
+
+    (instruction_root / "warn_missing.md").write_text("Warn fallback text", encoding="utf-8")
+    (instruction_root / "noop_missing.md").write_text("Noop fallback text", encoding="utf-8")
+
+    blueprint_root.joinpath("fallback.yaml").write_text(
+        """
+name: Fallback Flow
+prompt_template: |
+  Optional instruction fallback demo.
+global_instructions:
+  - instruction_id: intro
+steps:
+  - step_id: degrade
+    title: Degraded Step
+    kind: sequence
+    instruction_refs:
+      - instruction_id: analyze
+      - instruction_id: warn_missing
+        fallback:
+          mode: warn
+          placeholder: "[warn placeholder]"
+          log_key: warn_missing
+      - instruction_id: noop_missing
+        fallback:
+          mode: noop
+          placeholder: "[noop suppressed]"
+          log_key: noop_missing
 data_slots:
   - name: records
     adapter_key: research_sources
@@ -143,3 +182,38 @@ def test_adapter_swap_via_sdk(tmp_path: Path) -> None:
     assert "HTTP Source" in http_response.rendered_context
     assert "http-history" in http_response.rendered_context
     assert csv_response.rendered_context != http_response.rendered_context
+
+
+def test_instruction_fallback_warn_and_noop(tmp_path: Path) -> None:
+    settings = _write_blueprint(tmp_path)
+    csv_path = _make_csv(tmp_path)
+    registry = AdapterRegistry()
+    sdk_adapters.register_csv_loader(key="research_sources", registry=registry)
+    sdk_adapters.register_static_memory_provider(key="research_memory", registry=registry)
+    settings.adapter_registry.data_defaults["research_sources"] = {"path": str(csv_path)}
+    settings.adapter_registry.memory_defaults["research_memory"] = {"values": ["fallback-history"]}
+
+    materializer = build_materializer(settings=settings, registry=registry)
+    for filename in ("warn_missing.md", "noop_missing.md"):
+        path = settings.instruction_root / filename
+        path.unlink(missing_ok=True)
+    preview = sdk_blueprints.preview_blueprint(
+        blueprint_id="fallback",
+        settings=settings,
+        materializer=materializer,
+    )
+
+    assert preview.fallback_events, "Preview should expose fallback diagnostics."
+    assert {event.mode.value for event in preview.fallback_events} == {"warn", "noop"}
+    assert any(event.placeholder_used == "[warn placeholder]" for event in preview.fallback_events)
+
+    run = sdk_pipeline.run_pipeline(
+        blueprint_id="fallback",
+        settings=settings,
+        materializer=materializer,
+    )
+
+    assert run.fallback_events, "Pipeline response should expose fallback events."
+    assert {event.mode.value for event in run.fallback_events} == {"warn", "noop"}
+    fallback_logs = [event for event in run.events if event.event_type == "instruction_fallback"]
+    assert fallback_logs, "Execution events should log instruction_fallback entries."

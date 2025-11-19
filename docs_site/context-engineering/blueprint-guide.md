@@ -138,3 +138,30 @@ the instruction IDs used for auditing, and reuse the same caching strategy that
 future executor phases will depend on. This enforces the layering rules outlined
 in the specification: builders/previewers never reach into adapter registries or
 filesystem specifics directly.
+
+## Troubleshooting & Performance Snapshots
+
+Polish tasks introduced structured diagnostics so blueprint authors can fix issues
+without digging through stack traces:
+
+- `promptic.context.errors.describe_error()` converts any `PrompticError` into an
+  `ErrorDetail` containing a machine-readable code, human hint, and context payload
+  (e.g., missing instruction IDs or adapter keys).
+- `promptic.sdk.api.preview_blueprint_safe()` and `run_pipeline_safe()` wrap the
+  standard SDK functions, returning an `SdkResult` that embeds `ErrorDetail`,
+  run duration, and any warnings instead of raising immediately.
+
+```python
+from promptic.sdk import api
+
+result = api.preview_blueprint_safe(blueprint_id="research-flow")
+if result.error:
+    print(result.error.code, "→", result.error.hint)
+else:
+    print(f"Rendered in {result.duration_ms:.2f}ms")
+```
+
+The `ContextMaterializer` now exposes `prefetch_instructions()` plus
+`snapshot_stats()`. Prefetch warms the LRU caches before rendering, while the stats
+object reports cache hit ratios and adapter instantiations so you can confirm
+performance goals directly from the SDK.

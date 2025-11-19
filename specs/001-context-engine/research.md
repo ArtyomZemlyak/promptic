@@ -14,6 +14,13 @@
   - Embedding instructions directly in Python modules (fast but violates non-hardcoded requirement).
   - Mandatory remote store (e.g., object storage) adds deployment burden for MVP.
 
+## Instruction Provider Fallback Semantics
+- **Decision**: Introduce explicit fallback policies (`error`, `warn`, `noop`) on instruction provider definitions, with `warn` emitting structured preview/execution diagnostics while continuing, and `noop` substituting annotated placeholders. Swaps must declare the acceptable degradation and tests have to prove the pipeline stays LSP-compliant without core edits.
+- **Rationale**: CHK016 flagged the absence of observable guarantees when alternate instruction providers replace the default store. Explicit policies keep substitution rules contractual, so adapters can change without breaking SRP or OCP, and preview/executor flows know exactly how to degrade.
+- **Alternatives considered**:
+  - Always failing on missing instructions: too rigid for degraded preview/exploration flows and hinders hot-swapping experimental stores.
+  - Silently skipping instructions: breaks auditability and makes debugging difficult; structured warnings preserve transparency.
+
 ## Adapter Registration & Configuration
 - **Decision**: Implement adapter registry keyed by slot name using entry-point style metadata but driven by Pydantic settings (environment variables, .env files) so deployments configure connectors without code edits.
 - **Rationale**: Pydantic Settings keeps config declarative and type-safe, while registry pattern preserves dependency inversion and enables dynamic loading/unloading of adapters.

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Set
+from typing import Callable, Iterable, List, Set
 
-from promptic.blueprints.models import BlueprintStep, ContextBlueprint
+from promptic.blueprints.models import (
+    BlueprintStep,
+    ContextBlueprint,
+    InstructionFallbackConfig,
+    InstructionFallbackPolicy,
+    InstructionNodeRef,
+)
 from promptic.context.errors import BlueprintValidationError, OperationResult
 from promptic.instructions.store import InstructionStore
 from promptic.settings.base import ContextEngineSettings
@@ -56,14 +62,37 @@ class BlueprintValidator:
     def _missing_instructions(self, blueprint: ContextBlueprint) -> Set[str]:
         if not self._store:
             return set()
-        instruction_ids = {ref.instruction_id for ref in blueprint.global_instructions}
-        instruction_ids.update(self._collect_step_instruction_ids(blueprint.steps))
-        missing = {
-            instruction_id
-            for instruction_id in instruction_ids
-            if not self._store.exists(instruction_id)
-        }
+        requirements = self._instruction_requirements(blueprint)
+        missing = set()
+        for instruction_id, require_strict in requirements.items():
+            if not require_strict:
+                continue
+            if not self._store.exists(instruction_id):
+                missing.add(instruction_id)
         return missing
+
+    def _instruction_requirements(self, blueprint: ContextBlueprint) -> dict[str, bool]:
+        requirements: dict[str, bool] = {}
+
+        def _register(ref: InstructionNodeRef) -> None:
+            fallback: InstructionFallbackConfig | None = ref.fallback
+            strict = not fallback or fallback.mode == InstructionFallbackPolicy.ERROR
+            existing = requirements.get(ref.instruction_id, False)
+            requirements[ref.instruction_id] = existing or strict
+
+        for ref in blueprint.global_instructions:
+            _register(ref)
+        for step in blueprint.steps:
+            self._collect_step_instruction_refs(step, _register)
+        return requirements
+
+    def _collect_step_instruction_refs(
+        self, step: BlueprintStep, register: Callable[[InstructionNodeRef], None]
+    ) -> None:
+        for ref in step.instruction_refs:
+            register(ref)
+        for child in step.children:
+            self._collect_step_instruction_refs(child, register)
 
     @staticmethod
     def _collect_step_instruction_ids(steps: Iterable[BlueprintStep]) -> List[str]:

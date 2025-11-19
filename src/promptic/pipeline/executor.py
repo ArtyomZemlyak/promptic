@@ -8,6 +8,7 @@ from promptic.blueprints.models import (
     BlueprintStep,
     ContextBlueprint,
     ExecutionLogEntry,
+    FallbackEvent,
     InstructionNode,
     InstructionNodeRef,
 )
@@ -25,6 +26,7 @@ class ExecutionArtifact:
 
     run_id: str
     events: List[ExecutionLogEntry] = field(default_factory=list)
+    fallback_events: List[FallbackEvent] = field(default_factory=list)
 
 
 class PipelineExecutor:
@@ -49,6 +51,7 @@ class PipelineExecutor:
         self._logger = logger
         self._policies = policies
         self._hooks = hooks or PipelineHooks()
+        self._fallback_events: list[FallbackEvent] = []
 
     def run(
         self,
@@ -61,6 +64,7 @@ class PipelineExecutor:
         data_inputs = data_inputs or {}
         memory_inputs = memory_inputs or {}
         aggregate_warnings: list[str] = []
+        self._fallback_events.clear()
 
         blueprint_result = self._builder.load(blueprint_id)
         if not blueprint_result.ok:
@@ -71,20 +75,24 @@ class PipelineExecutor:
 
         self._logger.events.clear()
 
-        resolved_data: dict[str, Any] = {}
+        warm_result = self._materializer.prefetch_instructions(blueprint)
+        aggregate_warnings.extend(warm_result.warnings)
+        self._log_fallback_events(step_id="__prefetch__")
+        if not warm_result.ok:
+            error = self._ensure_error(warm_result.error, "Instruction warm-up failed.")
+            return OperationResult.failure(error, warnings=aggregate_warnings)
+
+        data_result = self._materializer.resolve_data_slots(
+            blueprint,
+            overrides=data_inputs,
+        )
+        aggregate_warnings.extend(data_result.warnings)
+        self._log_fallback_events(step_id="__data__")
+        if not data_result.ok:
+            error = self._ensure_error(data_result.error, "Failed to resolve required data slots.")
+            return OperationResult.failure(error, warnings=aggregate_warnings)
+        resolved_data = data_result.unwrap()
         for data_slot in blueprint.data_slots:
-            result = self._materializer.resolve_data(
-                blueprint,
-                data_slot.name,
-                overrides=data_inputs,
-            )
-            aggregate_warnings.extend(result.warnings)
-            if not result.ok:
-                error = self._ensure_error(
-                    result.error, f"Failed to resolve data slot '{data_slot.name}'."
-                )
-                return OperationResult.failure(error, warnings=aggregate_warnings)
-            resolved_data[data_slot.name] = result.unwrap()
             self._logger.emit(
                 step_id=data_slot.name,
                 event_type="data_resolved",
@@ -92,20 +100,19 @@ class PipelineExecutor:
                 reference_ids=[data_slot.name],
             )
 
-        resolved_memory: dict[str, Any] = {}
-        for memory_slot in blueprint.memory_slots:
-            result = self._materializer.resolve_memory(
-                blueprint,
-                memory_slot.name,
-                overrides=memory_inputs,
+        memory_result = self._materializer.resolve_memory_slots(
+            blueprint,
+            overrides=memory_inputs,
+        )
+        aggregate_warnings.extend(memory_result.warnings)
+        self._log_fallback_events(step_id="__memory__")
+        if not memory_result.ok:
+            error = self._ensure_error(
+                memory_result.error, "Failed to resolve required memory slots."
             )
-            aggregate_warnings.extend(result.warnings)
-            if not result.ok:
-                error = self._ensure_error(
-                    result.error, f"Failed to resolve memory slot '{memory_slot.name}'."
-                )
-                return OperationResult.failure(error, warnings=aggregate_warnings)
-            resolved_memory[memory_slot.name] = result.unwrap()
+            return OperationResult.failure(error, warnings=aggregate_warnings)
+        resolved_memory = memory_result.unwrap()
+        for memory_slot in blueprint.memory_slots:
             self._logger.emit(
                 step_id=memory_slot.name,
                 event_type="memory_resolved",
@@ -127,7 +134,11 @@ class PipelineExecutor:
                 return OperationResult.failure(error, warnings=combined_warnings)
             aggregate_warnings.extend(execution.warnings)
 
-        artifact = ExecutionArtifact(run_id=run_identifier, events=self._logger.snapshot())
+        artifact = ExecutionArtifact(
+            run_id=run_identifier,
+            events=self._logger.snapshot(),
+            fallback_events=list(self._fallback_events),
+        )
         return OperationResult.success(artifact, warnings=aggregate_warnings)
 
     def _execute_step(
@@ -153,6 +164,7 @@ class PipelineExecutor:
             )
             return OperationResult.failure(error, warnings=instructions.warnings)
         instruction_payloads = instructions.unwrap()
+        self._log_fallback_events(step.step_id)
 
         text_buffer: list[str] = []
         for node, content in instruction_payloads:
@@ -215,6 +227,25 @@ class PipelineExecutor:
     @staticmethod
     def _ensure_error(error: PrompticError | None, message: str) -> PrompticError:
         return error if error else PrompticError(message)
+
+    def _log_fallback_events(self, step_id: str) -> None:
+        events = self._materializer.consume_fallback_events()
+        if not events:
+            return
+        self._fallback_events.extend(events)
+        for event in events:
+            self._logger.emit(
+                step_id=step_id,
+                event_type="instruction_fallback",
+                payload={
+                    "instruction_id": event.instruction_id,
+                    "mode": getattr(event.mode, "value", event.mode),
+                    "message": event.message,
+                    "placeholder_used": event.placeholder_used,
+                    "log_key": event.log_key,
+                },
+                reference_ids=[event.instruction_id],
+            )
 
 
 __all__ = ["ExecutionArtifact", "PipelineExecutor"]

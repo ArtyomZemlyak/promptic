@@ -4,7 +4,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from promptic.blueprints.models import BlueprintStep, ContextBlueprint, InstructionNodeRef
+from promptic.blueprints.models import (
+    BlueprintStep,
+    ContextBlueprint,
+    FallbackEvent,
+    InstructionNodeRef,
+)
 from promptic.context.errors import OperationResult, PrompticError
 from promptic.context.rendering import render_context_preview
 from promptic.pipeline.builder import BlueprintBuilder
@@ -18,6 +23,7 @@ class PreviewArtifact:
     blueprint: ContextBlueprint
     rendered_context: str
     instruction_ids: list[str] = field(default_factory=list)
+    fallback_events: list[FallbackEvent] = field(default_factory=list)
 
 
 class ContextPreviewer:
@@ -42,6 +48,7 @@ class ContextPreviewer:
         sample_data = sample_data or {}
         sample_memory = sample_memory or {}
         aggregate_warnings: list[str] = []
+        fallback_events: list[FallbackEvent] = []
 
         blueprint_result = self._builder.load(blueprint_id)
         if not blueprint_result.ok:
@@ -50,35 +57,40 @@ class ContextPreviewer:
         blueprint = blueprint_result.unwrap()
         aggregate_warnings.extend(blueprint_result.warnings)
 
-        data_values: dict[str, Any] = {}
-        for data_slot in blueprint.data_slots:
-            resolved = self._materializer.resolve_data(
-                blueprint,
-                data_slot.name,
-                overrides=sample_data,
+        warm_result = self._materializer.prefetch_instructions(blueprint)
+        aggregate_warnings.extend(warm_result.warnings)
+        fallback_events.extend(self._materializer.consume_fallback_events())
+        if not warm_result.ok:
+            error = self._ensure_error(
+                warm_result.error, "Instruction warm-up failed before preview."
             )
-            aggregate_warnings.extend(resolved.warnings)
-            if not resolved.ok:
-                data_error = self._ensure_error(
-                    resolved.error, f"Failed to resolve data slot '{data_slot.name}'."
-                )
-                return OperationResult.failure(data_error, warnings=aggregate_warnings)
-            data_values[data_slot.name] = resolved.unwrap()
+            return OperationResult.failure(error, warnings=aggregate_warnings)
 
-        memory_values: dict[str, Any] = {}
-        for memory_slot in blueprint.memory_slots:
-            resolved = self._materializer.resolve_memory(
-                blueprint,
-                memory_slot.name,
-                overrides=sample_memory,
+        data_result = self._materializer.resolve_data_slots(
+            blueprint,
+            overrides=sample_data,
+        )
+        aggregate_warnings.extend(data_result.warnings)
+        fallback_events.extend(self._materializer.consume_fallback_events())
+        if not data_result.ok:
+            data_error = self._ensure_error(
+                data_result.error, "Failed to resolve required data slots."
             )
-            aggregate_warnings.extend(resolved.warnings)
-            if not resolved.ok:
-                memory_error = self._ensure_error(
-                    resolved.error, f"Failed to resolve memory slot '{memory_slot.name}'."
-                )
-                return OperationResult.failure(memory_error, warnings=aggregate_warnings)
-            memory_values[memory_slot.name] = resolved.unwrap()
+            return OperationResult.failure(data_error, warnings=aggregate_warnings)
+        data_values = data_result.unwrap()
+
+        memory_result = self._materializer.resolve_memory_slots(
+            blueprint,
+            overrides=sample_memory,
+        )
+        aggregate_warnings.extend(memory_result.warnings)
+        fallback_events.extend(self._materializer.consume_fallback_events())
+        if not memory_result.ok:
+            memory_error = self._ensure_error(
+                memory_result.error, "Failed to resolve required memory slots."
+            )
+            return OperationResult.failure(memory_error, warnings=aggregate_warnings)
+        memory_values = memory_result.unwrap()
 
         instruction_ids: list[str] = []
         global_instruction_text, warnings, instruction_error = self._resolve_instruction_text(
@@ -86,6 +98,7 @@ class ContextPreviewer:
             instruction_ids,
         )
         aggregate_warnings.extend(warnings)
+        fallback_events.extend(self._materializer.consume_fallback_events())
         if instruction_error:
             return OperationResult.failure(instruction_error, warnings=aggregate_warnings)
 
@@ -93,6 +106,7 @@ class ContextPreviewer:
             blueprint.steps, instruction_ids
         )
         aggregate_warnings.extend(step_warnings)
+        fallback_events.extend(self._materializer.consume_fallback_events())
         if step_error:
             return OperationResult.failure(step_error, warnings=aggregate_warnings)
 
@@ -127,6 +141,7 @@ class ContextPreviewer:
             blueprint=blueprint,
             rendered_context=render_result.text,
             instruction_ids=instruction_ids,
+            fallback_events=fallback_events,
         )
         return OperationResult.success(artifact, warnings=aggregate_warnings)
 

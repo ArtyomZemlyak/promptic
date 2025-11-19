@@ -29,6 +29,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
 # IDEs
 .vscode/
@@ -70,8 +71,10 @@ logs/*.log
 .pytest_cache/
 .coverage
 htmlcov/
+.coverage.*
 .tox/
 .hypothesis/
+coverage/
 
 # mypy
 .mypy_cache/

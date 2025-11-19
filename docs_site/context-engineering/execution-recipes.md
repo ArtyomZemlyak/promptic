@@ -60,6 +60,18 @@ If an instruction block exceeds `per_step_budget_chars`, the executor emits a
 Customize policies (e.g., token budgets) by extending `PolicyEngine` or injecting
 additional emitters into `PipelineLogger`.
 
+## Instruction Fallback Telemetry
+
+`InstructionFallbackPolicy` lets pipelines keep running even if a remote store goes dark. Declare the fallback in the blueprint (e.g., `warn` with a placeholder) and register providers with the modes they support. When the provider raises an error, `ContextMaterializer.apply_instruction_fallback()` records an `instruction_fallback` event and returns either the placeholder (`warn`) or an empty string (`noop`). SDK responses (`preview.fallback_events`, `run.fallback_events`) expose the structured diagnostics:
+
+```python
+for event in result.fallback_events:
+    print(f"[{event.mode}] {event.instruction_id} → {event.placeholder_used}")
+```
+
+Because fallback handling stays inside the materializer + executor layers, blueprint authors do not edit code when swapping providers; they simply pick the policy that matches their tolerance for degraded instructions.
+Pipeline event streams also emit `instruction_fallback` entries, which means the JSONL logs under `logs/` can be parsed for degraded instructions without correlating additional metadata.
+
 ## Integration with Agents
 
 Because every slot lookup flows through the `ContextMaterializer`, swapping adapters
@@ -72,3 +84,14 @@ provide fresh defaults. The executor's `PipelineHooks` allow host applications t
 
 These patterns keep execution aligned with the clean-architecture constraints defined
 in the specification while giving teams pragmatic extension points.
+
+## Runtime Bootstrap & Benchmarks
+
+Use `promptic.sdk.api.bootstrap_runtime()` when running recipes from scripts or
+notebooks. It wires settings, registry, and sharing a single `ContextMaterializer`
+instance so both preview and pipeline runs reuse warm caches. Pair that with
+`materializer.snapshot_stats()` to capture cache hit/miss ratios before and after
+your run—`tests/integration/test_performance.py` demonstrates how we keep preview
+and execution under 500 ms even with multiple instruction blocks. For release
+readiness, the docs_site quickstart now mirrors this flow and records a
+`quickstart-validation` snapshot so every adapter swap is proven end-to-end.

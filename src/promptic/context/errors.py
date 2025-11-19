@@ -1,18 +1,38 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Generic, Iterable, Optional, TypeVar
+from typing import Any, Generic, Iterable, Mapping, Optional, TypeVar
 
 
 class PrompticError(Exception):
     """Base exception for the Promptic SDK."""
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        code: str | None = None,
+        hint: str | None = None,
+        context: Mapping[str, Any] | None = None,
+    ) -> None:
+        text = message or self.__class__.__name__
+        super().__init__(text)
+        self.message = text
+        self.code = code or self.__class__.__name__
+        self.hint = hint
+        self.context = dict(context or {})
 
 
 class InstructionNotFoundError(PrompticError):
     """Raised when an instruction asset cannot be resolved."""
 
     def __init__(self, instruction_id: str) -> None:
-        super().__init__(f"Instruction '{instruction_id}' could not be located.")
+        super().__init__(
+            f"Instruction '{instruction_id}' could not be located.",
+            code="INSTRUCTION_NOT_FOUND",
+            hint="Ensure the instruction asset exists under the configured instruction_root.",
+            context={"instruction_id": instruction_id},
+        )
         self.instruction_id = instruction_id
 
 
@@ -33,7 +53,12 @@ class AdapterNotRegisteredError(PrompticError):
 
     def __init__(self, key: str, adapter_type: str) -> None:
         message = f"No {adapter_type} adapter registered for key '{key}'."
-        super().__init__(message)
+        super().__init__(
+            message,
+            code="ADAPTER_NOT_REGISTERED",
+            hint="Register the adapter via promptic.sdk.adapters or update the slot configuration.",
+            context={"adapter_key": key, "adapter_type": adapter_type},
+        )
         self.key = key
         self.adapter_type = adapter_type
 
@@ -46,7 +71,12 @@ class AdapterRetryError(AdapterExecutionError):
     """Raised when an adapter exhausts its retry budget."""
 
     def __init__(self, key: str, attempts: int, last_error: AdapterExecutionError) -> None:
-        super().__init__(f"Adapter '{key}' failed after {attempts} attempts: {last_error}")
+        super().__init__(
+            f"Adapter '{key}' failed after {attempts} attempts: {last_error}",
+            code="ADAPTER_RETRY_EXHAUSTED",
+            hint="Retry the adapter by increasing adapter_registry.max_retries or inspect adapter logs for permanent failures.",
+            context={"adapter_key": key, "attempts": attempts},
+        )
         self.key = key
         self.attempts = attempts
         self.last_error = last_error
@@ -93,6 +123,29 @@ class OperationResult(Generic[T]):
         return self.value
 
 
+@dataclass(frozen=True)
+class ErrorDetail:
+    code: str
+    message: str
+    hint: str | None = None
+    context: dict[str, Any] = field(default_factory=dict)
+
+
+def describe_error(error: PrompticError) -> ErrorDetail:
+    """Return a structured description suitable for SDK surfaces."""
+
+    hint = error.hint or _DEFAULT_HINTS.get(type(error))
+    context = dict(error.context)
+    if isinstance(error, AdapterRetryError):
+        context.setdefault("last_error", str(error.last_error))
+    return ErrorDetail(
+        code=error.code,
+        message=str(error),
+        hint=hint,
+        context=context,
+    )
+
+
 __all__ = [
     "AdapterExecutionError",
     "AdapterNotRegisteredError",
@@ -101,8 +154,21 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintValidationError",
     "ContextMaterializationError",
+    "ErrorDetail",
     "InstructionNotFoundError",
     "LoggingError",
     "OperationResult",
     "PrompticError",
+    "describe_error",
 ]
+
+
+_DEFAULT_HINTS: dict[type[PrompticError], str] = {
+    InstructionNotFoundError: "Verify the blueprint references existing instruction files.",
+    BlueprintValidationError: "Run BlueprintValidator to inspect structural issues.",
+    BlueprintLoadError: "Ensure the blueprint file exists and is valid YAML/JSON.",
+    AdapterNotRegisteredError: "Register the adapter or update the slot's adapter_key.",
+    AdapterRetryError: "Retry the adapter (increase adapter_registry.max_retries) or inspect adapter logs for permanent failures.",
+    ContextMaterializationError: "Check adapter outputs and overrides supplied to the SDK.",
+    LoggingError: "Ensure the log directory is writable.",
+}

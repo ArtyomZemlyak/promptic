@@ -10,6 +10,7 @@ from promptic.blueprints import (
     BlueprintStep,
     ContextBlueprint,
     DataSlot,
+    InstructionFallbackConfig,
     InstructionNode,
     InstructionNodeRef,
     MemorySlot,
@@ -128,3 +129,68 @@ def test_missing_adapter_returns_failure() -> None:
     result = materializer.resolve_data(blueprint, "sources")
     assert not result.ok
     assert isinstance(result.error, AdapterNotRegisteredError)
+
+
+def test_resolve_data_slots_batches_requests() -> None:
+    ConstantDataAdapter.calls = 0
+    blueprint = build_blueprint()
+    blueprint.data_slots.append(DataSlot(name="sources_copy", adapter_key="constant"))
+    materializer, _ = build_materializer()
+
+    result = materializer.resolve_data_slots(blueprint)
+
+    assert result.ok
+    values = result.unwrap()
+    assert set(values.keys()) == {"sources", "sources_copy"}
+    stats = materializer.snapshot_stats()
+    assert stats.data_adapter_instances == 1
+
+
+def test_prefetch_instructions_warms_cache() -> None:
+    materializer, store = build_materializer()
+    blueprint = build_blueprint()
+
+    warm = materializer.prefetch_instructions(blueprint)
+
+    assert warm.ok
+    stats = materializer.snapshot_stats()
+    assert store.load_calls == 1
+    assert stats.instruction_misses >= 1
+
+    second = materializer.resolve_instruction("intro")
+    assert second.ok
+    stats_after = materializer.snapshot_stats()
+    assert stats_after.instruction_hits >= 1
+
+
+def test_memory_slots_share_cached_providers() -> None:
+    blueprint = build_blueprint()
+    blueprint.memory_slots.append(MemorySlot(name="archive", provider_key="constant"))
+    materializer, _ = build_materializer()
+
+    first = materializer.resolve_memory_slots(blueprint)
+    assert first.ok
+    second = materializer.resolve_memory(blueprint, "archive")
+    assert second.ok
+
+    stats = materializer.snapshot_stats()
+    assert stats.memory_cache_hits >= 1
+
+
+def test_instruction_fallback_records_events() -> None:
+    materializer, _ = build_materializer()
+    refs = [
+        InstructionNodeRef(
+            instruction_id="missing",
+            fallback=InstructionFallbackConfig(mode="warn", placeholder="[missing instruction]"),
+        )
+    ]
+
+    result = materializer.resolve_instruction_refs(refs)
+
+    assert result.ok
+    node, content = result.unwrap()[0]
+    assert node.instruction_id == "missing"
+    assert content == "[missing instruction]"
+    events = materializer.consume_fallback_events()
+    assert events and events[0].instruction_id == "missing"

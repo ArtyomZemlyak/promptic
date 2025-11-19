@@ -175,6 +175,8 @@ components:
           type: string
         version:
           type: string
+        fallback:
+          $ref: '#/components/schemas/InstructionFallbackConfig'
     DataSlot:
       type: object
       required: [name, adapter_key, schema]
@@ -216,6 +218,11 @@ components:
           type: array
           items:
             type: string
+        fallback_policies:
+          type: array
+          description: Fallback modes supported by this adapter/provider
+          items:
+            $ref: '#/components/schemas/InstructionFallbackMode'
     PreviewRequest:
       type: object
       properties:
@@ -233,6 +240,10 @@ components:
           type: array
           items:
             type: string
+        fallback_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FallbackEvent'
     ExecutionRequest:
       type: object
       required: [data_inputs, memory_inputs]
@@ -250,6 +261,10 @@ components:
         status:
           type: string
           enum: [accepted, queued]
+        fallback_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FallbackEvent'
     Condition:
       type: object
       required: [expression]
@@ -257,4 +272,31 @@ components:
         expression:
           type: string
         description:
+          type: string
+    InstructionFallbackMode:
+      type: string
+      enum: [error, warn, noop]
+    InstructionFallbackConfig:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          $ref: '#/components/schemas/InstructionFallbackMode'
+        placeholder:
+          type: string
+          description: Text inserted when warn/noop fallback triggers
+        log_key:
+          type: string
+          description: Identifier used in diagnostics/log payloads
+    FallbackEvent:
+      type: object
+      required: [mode, instruction_id]
+      properties:
+        instruction_id:
+          type: string
+        mode:
+          $ref: '#/components/schemas/InstructionFallbackMode'
+        placeholder_used:
+          type: string
+        message:
           type: string

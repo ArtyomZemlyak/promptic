@@ -38,8 +38,34 @@ Relationships: recursive parent/child; may include `loop_slot` referencing `Data
 | `checksum` | `str` | Content fingerprint for caching | sha256 hex |
 | `locale` | `str` | Language/locale | ISO tag |
 | `version` | `str` | Semantic version for auditing | semver |
+| `provider_key` | `str` | Which instruction provider resolves this asset | defaults to `filesystem_default`; must map to registered provider |
+| `fallback_policy` | `InstructionFallbackPolicy` | Behavior when provider fails | default `error` |
+| `placeholder_template` | `Optional[str]` | Text rendered when fallback emits placeholder | ≤512 chars; required when `fallback_policy` ∈ {`warn`,`noop`} |
 
 Instruction nodes live in instruction store; blueprint references only `instruction_id`.
+
+## InstructionFallbackPolicy
+| Value | Description |
+|-------|-------------|
+| `error` | Fail fast and raise `InstructionUnavailableError`. |
+| `warn` | Log structured warning, inject annotated placeholder text, continue execution. |
+| `noop` | Suppress instruction content, mark event as skipped, continue with empty string. |
+
+Policies are enforced centrally by the `ContextMaterializer`. Each provider must declare supported policies, and blueprints/tests must assert behavior stays LSP-compliant when swapping providers.
+
+## InstructionNodeRef
+| Field | Type | Description | Validation |
+|-------|------|-------------|------------|
+| `instruction_id` | `str` | Target instruction asset | required |
+| `version` | `Optional[str]` | Specific instruction version | semver; defaults to latest |
+| `fallback` | `InstructionFallbackConfig` | Override policy per reference (e.g., warn for optional step) | Optional |
+
+## InstructionFallbackConfig
+| Field | Type | Description | Validation |
+|-------|------|-------------|------------|
+| `mode` | `InstructionFallbackPolicy` | Behavior when provider fails | required |
+| `placeholder` | `Optional[str]` | Text inserted when `mode` is `warn` or `noop` | ≤512 chars |
+| `log_key` | `Optional[str]` | Identifier to correlate fallback events in logs | slug; defaults to `instruction_id` |
 
 ## DataSlot
 | Field | Type | Description | Validation |
@@ -72,7 +98,7 @@ Instruction nodes live in instruction store; blueprint references only `instruct
 |-------|------|-------------|------------|
 | `timestamp` | `datetime` | Event time | timezone-aware |
 | `step_id` | `str` | Step generating event | must exist |
-| `event_type` | `Literal["instruction_loaded","data_resolved","memory_resolved","size_warning","error"]` | Event classification | required |
+| `event_type` | `Literal["instruction_loaded","instruction_fallback","data_resolved","memory_resolved","size_warning","error"]` | Event classification | required |
 | `payload` | `dict[str, Any]` | Context (sizes, adapter keys, errors) | kept ≤4 KB |
 | `reference_ids` | `list[str]` | Instruction/data/memory IDs touched | optional |
 
@@ -85,6 +111,7 @@ Instruction nodes live in instruction store; blueprint references only `instruct
 | `cache` | `ContextCache` | Optional memoization layer for slot resolutions | Interface; pluggable |
 | `resolve_data(slot: DataSlot, context: MaterializationContext)` | callable | Fetches data via adapter + enforces policies | Must raise typed errors on failure |
 | `resolve_memory(slot: MemorySlot, context: MaterializationContext)` | callable | Fetches memory via provider with retries | Same guarantees as data |
+| `apply_instruction_fallback(fallback: InstructionFallbackConfig, reason: str, context: MaterializationContext)` | callable | Emits diagnostics + placeholder text per policy | Must log `instruction_fallback` events and return safe string |
 
 Notes: Use-case services (`ContextPreviewer`, `PipelineExecutor`, SDK façades) depend only on this interface, never on adapter registries directly. Tests mock/stub the materializer to isolate workflows.
 
@@ -92,5 +119,5 @@ Notes: Use-case services (`ContextPreviewer`, `PipelineExecutor`, SDK façades) 
 - `ContextBlueprint` aggregates `BlueprintStep`, `DataSlot`, `MemorySlot`.
 - `BlueprintStep` tree references `InstructionNode` via `InstructionNodeRef` (id + version).
 - `DataSlot` / `MemorySlot` resolve via `AdapterRegistration`.
-- `ContextMaterializer` mediates all interactions between use cases and adapters, emitting cache hits/misses for observability.
+- `ContextMaterializer` mediates all interactions between use cases and adapters, emitting cache hits/misses plus fallback diagnostics for observability.
 - `PipelineExecutor` produces `ExecutionLogEntry` records per step, linking back to blueprints, materializer events, and adapter metadata.

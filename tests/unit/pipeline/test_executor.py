@@ -8,6 +8,7 @@ from promptic.blueprints import (
     BlueprintStep,
     ContextBlueprint,
     DataSlot,
+    FallbackEvent,
     InstructionNode,
     InstructionNodeRef,
     MemorySlot,
@@ -31,6 +32,8 @@ class StubBuilder:
 class StubMaterializer:
     def __init__(self) -> None:
         self.instructions: list[str] = []
+        self._fallback_events: list[FallbackEvent] = []
+        self.fallback_targets: dict[str, str] = {}
 
     def resolve_instruction_refs(
         self, refs: Sequence[InstructionNodeRef]
@@ -48,10 +51,25 @@ class StubMaterializer:
                         locale="en-US",
                         version="1",
                     ),
-                    f"Instruction {ref.instruction_id}",
+                    self._maybe_placeholder(ref.instruction_id),
                 )
             )
         return OperationResult.success(tuple(payload))
+
+    def _maybe_placeholder(self, instruction_id: str) -> str:
+        placeholder = self.fallback_targets.get(instruction_id)
+        if placeholder is None:
+            return f"Instruction {instruction_id}"
+        self._fallback_events.append(
+            FallbackEvent(
+                instruction_id=instruction_id,
+                mode="warn",
+                message="warn fallback applied",
+                placeholder_used=placeholder,
+                log_key=instruction_id,
+            )
+        )
+        return placeholder
 
     def resolve_data(
         self,
@@ -72,6 +90,42 @@ class StubMaterializer:
         overrides: Mapping[str, Any] | None = None,
     ) -> OperationResult[Any]:
         return OperationResult.success(overrides.get(slot_name) if overrides else ["memo"])
+
+    def prefetch_instructions(self, blueprint: ContextBlueprint) -> OperationResult[int]:
+        return OperationResult.success(0)
+
+    def resolve_data_slots(
+        self,
+        blueprint: ContextBlueprint,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> OperationResult[dict[str, Any]]:
+        payload: dict[str, Any] = {}
+        for slot in blueprint.data_slots:
+            result = self.resolve_data(blueprint, slot.name, overrides=overrides)
+            if not result.ok:
+                return result
+            payload[slot.name] = result.unwrap()
+        return OperationResult.success(payload)
+
+    def resolve_memory_slots(
+        self,
+        blueprint: ContextBlueprint,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> OperationResult[dict[str, Any]]:
+        payload: dict[str, Any] = {}
+        for slot in blueprint.memory_slots:
+            result = self.resolve_memory(blueprint, slot.name, overrides=overrides)
+            if not result.ok:
+                return result
+            payload[slot.name] = result.unwrap()
+        return OperationResult.success(payload)
+
+    def consume_fallback_events(self) -> list[FallbackEvent]:
+        events = list(self._fallback_events)
+        self._fallback_events.clear()
+        return events
 
 
 def _make_blueprint() -> ContextBlueprint:
@@ -153,3 +207,27 @@ def test_executor_emits_size_warning_when_step_exceeds_budget(tmp_path: Path) ->
     assert result.ok
     warnings = [event for event in result.unwrap().events if event.event_type == "size_warning"]
     assert warnings, "Expected size warnings when per-step budget is exceeded."
+
+
+def test_executor_captures_instruction_fallbacks(tmp_path: Path) -> None:
+    blueprint = _make_blueprint()
+    builder = StubBuilder(blueprint)
+    materializer = StubMaterializer()
+    materializer.fallback_targets["detail_inst"] = "[detail missing]"
+    settings = ContextEngineSettings(log_root=tmp_path / "logs")
+    logger = PipelineLogger()
+    policies = PolicyEngine(settings=settings)
+    executor = PipelineExecutor(
+        builder=builder,  # type: ignore[arg-type]
+        materializer=materializer,  # type: ignore[arg-type]
+        logger=logger,
+        policies=policies,
+    )
+
+    result = executor.run(blueprint_id="exec")
+
+    assert result.ok
+    artifact = result.unwrap()
+    fallback_events = [e for e in artifact.events if e.event_type == "instruction_fallback"]
+    assert fallback_events, "Expected fallback log entries when placeholder text is used."
+    assert artifact.fallback_events, "ExecutionArtifact should expose fallback events."
