@@ -28,30 +28,30 @@
   - Hard-coded adapter map inside code: violates extensibility promise.
   - Service locator via global state: harder to test and reason about in async contexts.
 
-## Execution Engine & Hierarchical Traversal
-- **Decision**: Pipeline executor walks blueprint graph depth-first, emitting structured events (`ExecutionLogEntry`) and allowing per-step policies (loop over data collections, optional branches) with error boundaries around adapters.
-- **Rationale**: Depth-first traversal aligns with nested instructions semantics, structured events make auditing easier, and explicit error boundaries prevent one adapter failure from collapsing the entire run.
+## Rendering & Hierarchical Context Construction
+- **Decision**: Context rendering walks blueprint graph depth-first, constructing LLM-ready text by merging prompt, instructions, data, and memory. Rendering supports hierarchical step structures (nested instructions, loop steps) with error boundaries around adapters.
+- **Rationale**: Depth-first traversal aligns with nested instructions semantics, enables iterative context construction for agent frameworks, and explicit error boundaries prevent one adapter failure from collapsing the entire render.
 - **Alternatives considered**:
   - Breadth-first traversal: complicates per-step state management.
-  - Fire-and-forget async tasks: risks losing ordering guarantees required for deterministic prompts.
+  - Single-pass flat rendering: loses hierarchical structure needed for agent frameworks.
 
 ## Observability & Auditing
-- **Decision**: Provide pluggable logger that records every instruction/data/memory lookup plus context-size checkpoints, emitting JSON Lines for downstream tooling.
-- **Rationale**: Auditing was a functional requirement, and JSONL streams integrate cleanly with SDK previews or log aggregation without forcing a database.
+- **Decision**: Provide optional logging for instruction/data/memory lookups during rendering, with structured warnings/fallback events returned in response objects. No mandatory execution logs—library focuses on context construction, not execution tracking.
+- **Rationale**: Library is for context construction only; execution tracking belongs to agent frameworks. Structured warnings/fallback events provide sufficient observability for debugging rendering issues without adding execution log overhead.
 - **Alternatives considered**:
-  - SQL persistence: overkill for MVP and adds migration burden.
-  - Plain stdout logging: hard to parse programmatically.
+  - Mandatory JSONL execution logs: overkill for context construction library, adds complexity.
+  - No observability: makes debugging adapter/instruction issues difficult.
 
 ## Scalability & Performance Guardrails
-- **Decision**: Enforce configurable per-step token/character budgets, chunk large data payloads, and provide streaming iterators so pipelines can handle thousands of records by batching.
-- **Rationale**: Ensures we do not exceed LLM token limits and keeps memory predictable on developer laptops.
+- **Decision**: Enforce configurable per-step token/character budgets, chunk large data payloads, and provide streaming iterators so blueprints can handle thousands of items in loop steps by batching.
+- **Rationale**: Ensures we do not exceed LLM token limits and keeps memory predictable on developer laptops. Agent frameworks can request context for specific steps/items iteratively.
 - **Alternatives considered**:
-  - Allow unlimited payloads: risks OOM and unpredictable agent results.
+  - Allow unlimited payloads: risks OOM and unpredictable rendering results.
   - Hard-coded limits: inflexible across teams and models.
 
 ## ContextMaterializer Boundary Enforcement
-- **Decision**: Treat `ContextMaterializer` as the sole gateway to adapter registries from the moment `BlueprintBuilder` (T020) and `ContextPreviewer` (T021) are implemented; downstream executors and SDK layers inject the same abstraction.
-- **Rationale**: Enforces Principle P1 (clean architecture) by preventing preview/execution code from reaching into adapter registries, ensures SOLID responsibilities stay intact even before T034 wiring, and simplifies testing by letting suites stub one interface.
+- **Decision**: Treat `ContextMaterializer` as the sole gateway to adapter registries from the moment `BlueprintBuilder` and `ContextPreviewer` are implemented; downstream rendering functions and SDK layers inject the same abstraction.
+- **Rationale**: Enforces Principle P1 (clean architecture) by preventing rendering code from reaching into adapter registries, ensures SOLID responsibilities stay intact, and simplifies testing by letting suites stub one interface.
 - **Alternatives considered**:
-  - Delay the materializer dependency until T034: risks early adapters leaking into use cases and violates the Constitution.
-  - Hardcode adapter lookups inside preview/executor modules: creates tight coupling, harder mocking, and inevitable refactors once US2 starts.
+  - Delay the materializer dependency until adapter registration: risks early adapters leaking into use cases and violates the Constitution.
+  - Hardcode adapter lookups inside preview/rendering modules: creates tight coupling, harder mocking, and inevitable refactors once adapter swapping starts.

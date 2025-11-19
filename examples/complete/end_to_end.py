@@ -60,13 +60,15 @@ print(f"✅ Blueprint loaded: {blueprint.name}")
 
 # Preview
 print("\n=== Generating preview ===")
+# Preview is automatically printed to console with Rich formatting (colors, styles)
 preview = blueprints.preview_blueprint(
     blueprint_id=str(blueprint.id),
     settings=settings,
     materializer=materializer,
 )
 print("✅ Preview generated")
-print(f"Preview length: {len(preview.rendered_context)} characters")
+# rendered_context contains plain text version for programmatic use
+print(f"Plain text preview length: {len(preview.rendered_context)} characters")
 
 if preview.fallback_events:
     print(f"\n⚠️  {len(preview.fallback_events)} fallback events detected")

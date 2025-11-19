@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
+import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -101,3 +102,63 @@ class ContextEngineSettings(BaseSettings):
         root = self.instruction_root.expanduser()
         root.mkdir(parents=True, exist_ok=True)
         return root
+
+    @classmethod
+    def from_yaml(cls, yaml_path: Path | str) -> ContextEngineSettings:
+        """
+        Load settings from a YAML configuration file.
+
+        # AICODE-NOTE: This method allows loading settings from YAML files instead of
+        programmatically setting them. Relative paths in the YAML are resolved relative to
+        the YAML file's directory.
+
+        Args:
+            yaml_path: Path to the YAML configuration file
+
+        Returns:
+            ContextEngineSettings instance loaded from the YAML file
+
+        Example:
+            ```yaml
+            blueprint_root: blueprints
+            instruction_root: instructions
+            log_root: logs
+            adapter_registry:
+              data_defaults:
+                csv_loader:
+                  path: data/sources.csv
+            ```
+        """
+        yaml_path = Path(yaml_path).resolve()
+        if not yaml_path.exists():
+            raise FileNotFoundError(f"Settings YAML file not found: {yaml_path}")
+
+        yaml_dir = yaml_path.parent
+
+        with yaml_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        # Convert string paths to Path objects and resolve relative paths
+        for path_field in ("blueprint_root", "instruction_root", "log_root"):
+            if path_field in data:
+                path_value = data[path_field]
+                if isinstance(path_value, str):
+                    path_obj = Path(path_value)
+                    if not path_obj.is_absolute():
+                        path_obj = (yaml_dir / path_obj).resolve()
+                    data[path_field] = path_obj
+
+        # Resolve relative paths in adapter registry data_defaults
+        if "adapter_registry" in data and isinstance(data["adapter_registry"], dict):
+            adapter_registry = data["adapter_registry"]
+            if "data_defaults" in adapter_registry:
+                for adapter_key, adapter_config in adapter_registry["data_defaults"].items():
+                    if isinstance(adapter_config, dict) and "path" in adapter_config:
+                        path_value = adapter_config["path"]
+                        if isinstance(path_value, str):
+                            path_obj = Path(path_value)
+                            if not path_obj.is_absolute():
+                                path_obj = (yaml_dir / path_obj).resolve()
+                            adapter_config["path"] = str(path_obj)
+
+        return cls(**data)

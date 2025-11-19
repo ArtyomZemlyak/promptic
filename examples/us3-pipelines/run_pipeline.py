@@ -15,6 +15,7 @@ from promptic.instructions.cache import InstructionCache
 from promptic.instructions.store import FilesystemInstructionStore
 from promptic.pipeline.builder import BlueprintBuilder
 from promptic.pipeline.validation import BlueprintValidator
+from promptic.sdk import adapters as sdk_adapters
 from promptic.sdk import blueprints, pipeline
 from promptic.sdk.api import build_materializer
 from promptic.settings.base import ContextEngineSettings
@@ -22,13 +23,16 @@ from promptic.settings.base import ContextEngineSettings
 # Setup
 examples_dir = Path(__file__).parent
 blueprint_path = examples_dir / "hierarchical_blueprint.yaml"
+settings_path = examples_dir / "settings.yaml"
 
-# Configure settings
-settings = ContextEngineSettings()
-settings.blueprint_root = examples_dir
+# Load settings from YAML file
+settings = ContextEngineSettings.from_yaml(settings_path)
 
-# Create registry and materializer
+# Create registry and register adapters
 registry = AdapterRegistry()
+sdk_adapters.register_csv_loader(key="csv_loader", registry=registry)
+
+# Build materializer with registry
 materializer = build_materializer(settings=settings, registry=registry)
 
 # Load blueprint
@@ -47,7 +51,7 @@ blueprint = result.unwrap()
 # Execute pipeline
 print("\nExecuting pipeline...")
 run = pipeline.run_pipeline(
-    blueprint_id=str(blueprint.id),
+    blueprint_id="hierarchical_blueprint",
     settings=settings,
     materializer=materializer,
 )

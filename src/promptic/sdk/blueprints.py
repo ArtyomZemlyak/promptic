@@ -23,6 +23,7 @@ def preview_blueprint(
     sample_memory: Mapping[str, Any] | None = None,
     settings: ContextEngineSettings | None = None,
     materializer: ContextMaterializer | None = None,
+    print_to_console: bool = True,
 ) -> PreviewResponse:
     runtime_settings = settings or ContextEngineSettings()
     runtime_settings.ensure_directories()
@@ -33,6 +34,7 @@ def preview_blueprint(
         blueprint_id=blueprint_id,
         sample_data=sample_data,
         sample_memory=sample_memory,
+        print_to_console=print_to_console,
     )
     if not result.ok:
         error = result.error or PrompticError("Blueprint preview failed.")

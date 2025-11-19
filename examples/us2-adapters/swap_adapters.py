@@ -17,11 +17,10 @@ from promptic.settings.base import ContextEngineSettings
 # Setup
 examples_dir = Path(__file__).parent
 blueprint_path = examples_dir / "blueprint.yaml"
-data_dir = examples_dir / "data"
+settings_path = examples_dir / "settings.yaml"
 
-# Configure settings
-settings = ContextEngineSettings()
-settings.adapter_registry.data_defaults["csv_loader"] = {"path": str(data_dir / "sample.csv")}
+# Load settings from YAML file
+settings = ContextEngineSettings.from_yaml(settings_path)
 
 # Create registry
 registry = AdapterRegistry()
@@ -58,12 +57,14 @@ blueprint = result.unwrap()
 
 # Preview with CSV adapter
 print("\n=== Preview with CSV adapter ===")
+# Preview is automatically printed to console with Rich formatting (colors, styles)
 preview1 = blueprints.preview_blueprint(
     blueprint_id=str(blueprint.id),
     settings=settings,
     materializer=materializer,
 )
-print(preview1.rendered_context[:200] + "...")
+# rendered_context contains plain text version (first 200 chars shown for demo)
+print(f"Plain text preview (first 200 chars): {preview1.rendered_context[:200]}...")
 
 # Register HTTP adapter with same key (swap)
 print("\nSwapping to HTTP adapter...")

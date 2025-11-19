@@ -84,11 +84,32 @@ sdk_adapters.register_http_instruction_store(
     fallback_policies={"error", "warn"},
 )
 ```
-If the HTTP store goes down, previews/executions emit a `fallback_event`, inject the placeholder (for `warn`) or empty string (for `noop`), and continue so long as the policy allows it. All events are logged via `InstructionFallbackPolicy` diagnostics.
+If the HTTP store goes down, rendering emits a `fallback_event`, inject the placeholder (for `warn`) or empty string (for `noop`), and continue so long as the policy allows it. All events are returned in response objects via `InstructionFallbackPolicy` diagnostics.
 
-## 5. Preview & Execute
+## 5. Load & Render (Minimal API)
+The simplest usage requires just 3 lines of Python code:
 ```python
-from promptic.sdk import blueprints, pipeline
+from promptic.sdk import load_blueprint, render_preview, render_for_llm
+
+# Load blueprint (auto-discovers instructions and adapters)
+blueprint = load_blueprint("research-flow")
+
+# Preview in terminal (Rich formatting)
+render_preview(blueprint)
+
+# Get text for LLM
+text = render_for_llm(blueprint)
+```
+
+All dependencies (instructions, adapters) are resolved automatically under the hood. The `load_blueprint()` function supports three variants:
+- Auto-discovery by name: `load_blueprint("research-flow")`
+- Explicit file path: `load_blueprint("path/to/blueprint.yaml")`
+- With optional settings: `load_blueprint("research-flow", settings=...)`
+
+## 6. Advanced Usage
+For more control, you can use the detailed API:
+```python
+from promptic.sdk import blueprints
 from promptic.sdk.api import build_materializer
 
 materializer = build_materializer(settings=settings, registry=registry)
@@ -100,26 +121,26 @@ preview = blueprints.preview_blueprint(
 print(preview.rendered_context)
 for event in preview.fallback_events:
     print("fallback:", event.mode, event.instruction_id)
-
-run = pipeline.run_pipeline(
-    blueprint_id="research-flow",
-    settings=settings,
-    materializer=materializer,
-)
-for event in run.events:
-    print(event.event_type, event.payload)
-for event in run.fallback_events:
-    print("fallback:", event.mode, event.instruction_id)
 ```
-Both `blueprints.preview_blueprint` and `pipeline.run_pipeline` resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated even in US1. Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`. To swap sources, register a different adapter under the same key (e.g., `sdk_adapters.register_http_loader("csv_loader", registry=AdapterRegistry())`) and provide new defaults—no blueprint changes required.
 
-`preview.fallback_events` and `run.fallback_events` expose structured diagnostics for each degraded instruction. Every event includes the `instruction_id`, fallback `mode`, `message`, and the placeholder text that was rendered (warn) or recorded (noop). Pipeline runs also emit `instruction_fallback` entries inside `ExecutionResponse.events`, so log processors can correlate degraded instructions with downstream effects.
+Rendering functions resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated. Preview rendering highlights unresolved placeholders. To swap sources, register a different adapter under the same key (e.g., `sdk_adapters.register_http_loader("csv_loader", registry=AdapterRegistry())`) and provide new defaults—no blueprint changes required.
 
-## 6. Audit Outputs
-- Inspect `logs/*.jsonl` for `size_warning` or `error` events.
-- Use `pipeline.trace_run(run_id, step_id="summarize", item_index=2)` (SDK helper) to replay nested instructions for a specific item.
+`preview.fallback_events` expose structured diagnostics for each degraded instruction. Every event includes the `instruction_id`, fallback `mode`, `message`, and the placeholder text that was rendered (warn) or recorded (noop).
 
-## 7. Iterate
+## 7. Render Specific Instructions
+You can render specific instructions in multiple ways:
+```python
+# Render single instruction by ID
+text = render_instruction(blueprint, "collect_step")
+
+# Render all instructions for a step
+text = render_instruction(blueprint, step_id="collect")
+
+# Or use method on blueprint object
+text = blueprint.render_instruction("collect_step")
+```
+
+## 8. Iterate
 - Update YAML/Markdown assets; no Python edits required unless adding adapters.
 - Re-run tests: `pytest tests -m "unit or integration or contract"`.
 - Run `pre-commit run --all-files` before pushing.

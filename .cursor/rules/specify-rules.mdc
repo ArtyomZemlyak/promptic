@@ -25,9 +25,9 @@ Python 3.11 (CPython): Follow standard conventions
 
 ## Recent Changes
 - 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `rich` (preview rendering), `jinja2` (templating), `orjson` (JSON serialization), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing), optional adapter extras (`httpx`, `sqlalchemy`, `faiss-cpu`)
+- 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `rich` (preview rendering), `jinja2` (templating), `orjson` (JSON serialization), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing), optional adapter extras (`httpx`, `sqlalchemy`, `faiss-cpu`)
 - 001-context-engine: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
-- 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

@@ -44,6 +44,7 @@ class ContextPreviewer:
         blueprint_id: str,
         sample_data: Mapping[str, Any] | None = None,
         sample_memory: Mapping[str, Any] | None = None,
+        print_to_console: bool = True,
     ) -> OperationResult[PreviewArtifact]:
         sample_data = sample_data or {}
         sample_memory = sample_memory or {}
@@ -126,6 +127,7 @@ class ContextPreviewer:
             step_instructions=step_text,
             data_preview=data_values or sample_data,
             memory_preview=memory_values or sample_memory,
+            print_to_console=print_to_console,
         )
         aggregate_warnings.extend(render_result.warnings)
 

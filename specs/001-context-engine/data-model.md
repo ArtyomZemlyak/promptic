@@ -93,31 +93,22 @@ Policies are enforced centrally by the `ContextMaterializer`. Each provider must
 | `config_model` | `type[BaseSettings]` | Pydantic settings used for config | subclass of `BaseSettings` |
 | `capabilities` | `set[str]` | e.g., `{"async","streaming"}` | optional |
 
-## ExecutionLogEntry
-| Field | Type | Description | Validation |
-|-------|------|-------------|------------|
-| `timestamp` | `datetime` | Event time | timezone-aware |
-| `step_id` | `str` | Step generating event | must exist |
-| `event_type` | `Literal["instruction_loaded","instruction_fallback","data_resolved","memory_resolved","size_warning","error"]` | Event classification | required |
-| `payload` | `dict[str, Any]` | Context (sizes, adapter keys, errors) | kept ≤4 KB |
-| `reference_ids` | `list[str]` | Instruction/data/memory IDs touched | optional |
-
 ## ContextMaterializer
 | Field | Type | Description | Validation |
 |-------|------|-------------|------------|
-| `id` | `UUID4` | Materializer instance identifier for logging/tracing | Auto |
+| `id` | `UUID4` | Materializer instance identifier for tracing | Auto |
 | `data_registry` | `AdapterRegistryView` | Read-only map of data adapters | Injected; no mutation |
 | `memory_registry` | `AdapterRegistryView` | Read-only map of memory providers | Injected; no mutation |
 | `cache` | `ContextCache` | Optional memoization layer for slot resolutions | Interface; pluggable |
 | `resolve_data(slot: DataSlot, context: MaterializationContext)` | callable | Fetches data via adapter + enforces policies | Must raise typed errors on failure |
 | `resolve_memory(slot: MemorySlot, context: MaterializationContext)` | callable | Fetches memory via provider with retries | Same guarantees as data |
-| `apply_instruction_fallback(fallback: InstructionFallbackConfig, reason: str, context: MaterializationContext)` | callable | Emits diagnostics + placeholder text per policy | Must log `instruction_fallback` events and return safe string |
+| `apply_instruction_fallback(fallback: InstructionFallbackConfig, reason: str, context: MaterializationContext)` | callable | Emits diagnostics + placeholder text per policy | Returns structured fallback events in response objects |
 
-Notes: Use-case services (`ContextPreviewer`, `PipelineExecutor`, SDK façades) depend only on this interface, never on adapter registries directly. Tests mock/stub the materializer to isolate workflows.
+Notes: Use-case services (`ContextPreviewer`, rendering functions, SDK façades) depend only on this interface, never on adapter registries directly. Tests mock/stub the materializer to isolate workflows.
 
 ## Relationships Overview
 - `ContextBlueprint` aggregates `BlueprintStep`, `DataSlot`, `MemorySlot`.
 - `BlueprintStep` tree references `InstructionNode` via `InstructionNodeRef` (id + version).
 - `DataSlot` / `MemorySlot` resolve via `AdapterRegistration`.
 - `ContextMaterializer` mediates all interactions between use cases and adapters, emitting cache hits/misses plus fallback diagnostics for observability.
-- `PipelineExecutor` produces `ExecutionLogEntry` records per step, linking back to blueprints, materializer events, and adapter metadata.
+- Rendering functions use `ContextMaterializer` to resolve data/memory slots and construct LLM-ready context text.

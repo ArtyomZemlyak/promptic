@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Literal, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from promptic.pipeline.context_materializer import ContextMaterializer
+    from promptic.settings.base import ContextEngineSettings
 
 from pydantic import (
     UUID4,
@@ -224,6 +228,25 @@ class ContextBlueprint(BaseModel):
             ids.append(step.step_id)
             ids.extend(ContextBlueprint._collect_step_ids(step.children))
         return ids
+
+    def render_instruction(
+        self,
+        instruction_id: str,
+        *,
+        settings: ContextEngineSettings | None = None,
+        materializer: ContextMaterializer | None = None,
+    ) -> str:
+        """
+        Render a specific instruction by ID from this blueprint.
+
+        # AICODE-NOTE: This method provides convenient access to individual
+        #              instructions without requiring external SDK functions.
+        """
+        from promptic.sdk.api import render_instruction
+
+        return render_instruction(
+            self, instruction_id=instruction_id, settings=settings, materializer=materializer
+        )
 
     @staticmethod
     def _assert_unique(values: Iterable[str], label: str) -> None:
