@@ -126,6 +126,42 @@ class LoggingError(PrompticError):
     """Raised when the event logger fails to write artifacts."""
 
 
+class TemplateRenderError(PrompticError):
+    """Domain exception raised when template rendering fails."""
+
+    def __init__(
+        self,
+        instruction_id: str,
+        format: str,
+        error_type: str,  # Literal["missing_placeholder", "syntax_error", "type_mismatch", "circular_reference"]
+        message: str,
+        line_number: int | None = None,
+        placeholder: str | None = None,
+        context: Mapping[str, Any] | None = None,
+    ) -> None:
+        error_context = {
+            "instruction_id": instruction_id,
+            "format": format,
+            "error_type": error_type,
+            "line_number": line_number,
+            "placeholder": placeholder,
+        }
+        if context:
+            error_context.update(context)
+
+        super().__init__(
+            message,
+            code="TEMPLATE_RENDER_ERROR",
+            hint="Check the instruction content matches the expected template syntax and available data.",
+            context=error_context,
+        )
+        self.instruction_id = instruction_id
+        self.format = format
+        self.error_type = error_type
+        self.line_number = line_number
+        self.placeholder = placeholder
+
+
 T = TypeVar("T")
 
 

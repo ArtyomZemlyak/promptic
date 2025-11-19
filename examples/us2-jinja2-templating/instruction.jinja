@@ -1,0 +1,17 @@
+# Analysis for {{ data.project }}
+
+{% if data.is_urgent %}
+**PRIORITY: URGENT**
+{% endif %}
+
+## Tasks
+
+{% for task in data.tasks %}
+- [ ] {{ task.title }} (Assignee: {{ task.assignee }})
+  {% if task.get('notes') %}
+  > Note: {{ task.notes }}
+  {% endif %}
+{% endfor %}
+
+## Summary
+Total tasks: {{ data.tasks | length }}

@@ -23,6 +23,7 @@ dependencies = [
     "jinja2>=3.1",
     "orjson>=3.9",
     "pyyaml>=6.0",
+    "regex>=2023.10",
     "eval_type_backport>=0.2",
 ]
 
@@ -56,3 +57,7 @@ warn_unused_ignores = true
 disallow_untyped_defs = true
 strict_equality = true
 plugins = ["pydantic.mypy"]
+exclude = [
+    "examples/",
+    "tests/",
+]

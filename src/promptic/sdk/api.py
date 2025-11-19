@@ -13,6 +13,7 @@ from promptic.blueprints.models import (
     FallbackEvent,
 )
 from promptic.context.errors import ErrorDetail, PrompticError, describe_error
+from promptic.context.template_context import build_instruction_context
 from promptic.instructions.cache import InstructionCache
 from promptic.instructions.store import FilesystemInstructionStore, InstructionResolver
 from promptic.pipeline.context_materializer import ContextMaterializer
@@ -273,27 +274,37 @@ def render_preview(
         raise error
     memory_values = memory_result.unwrap()
 
+    render_context = build_instruction_context(
+        blueprint=blueprint,
+        data=data_values,
+        memory=memory_values,
+    )
+
     # Resolve instructions
     instruction_ids: list[str] = []
     global_instruction_text, warnings, instruction_error = previewer._resolve_instruction_text(
-        blueprint.global_instructions, instruction_ids
+        blueprint.global_instructions, instruction_ids, context=render_context
     )
     if instruction_error:
         raise instruction_error
 
     step_text, step_warnings, step_error = previewer._resolve_step_instructions(
-        blueprint.steps, instruction_ids
+        blueprint.steps,
+        instruction_ids,
+        blueprint=blueprint,
+        data=data_values,
+        memory=memory_values,
     )
     if step_error:
         raise step_error
 
-    template_context = {
-        "blueprint": blueprint.model_dump(),
-        "data": data_values,
-        "memory": memory_values,
-        "sample_data": data_values or sample_data,
-        "sample_memory": memory_values or sample_memory,
-    }
+    template_context = render_context.get_template_variables()
+    template_context.update(
+        {
+            "sample_data": data_values or sample_data,
+            "sample_memory": memory_values or sample_memory,
+        }
+    )
 
     render_result = render_context_preview(
         blueprint=blueprint,
@@ -348,27 +359,37 @@ def render_for_llm(
         raise error
     memory_values = memory_result.unwrap()
 
+    render_context = build_instruction_context(
+        blueprint=blueprint,
+        data=data_values,
+        memory=memory_values,
+    )
+
     # Resolve instructions
     instruction_ids: list[str] = []
     global_instruction_text, warnings, instruction_error = previewer._resolve_instruction_text(
-        blueprint.global_instructions, instruction_ids
+        blueprint.global_instructions, instruction_ids, context=render_context
     )
     if instruction_error:
         raise instruction_error
 
     step_text, step_warnings, step_error = previewer._resolve_step_instructions(
-        blueprint.steps, instruction_ids
+        blueprint.steps,
+        instruction_ids,
+        blueprint=blueprint,
+        data=data_values,
+        memory=memory_values,
     )
     if step_error:
         raise step_error
 
-    template_context = {
-        "blueprint": blueprint.model_dump(),
-        "data": data_values,
-        "memory": memory_values,
-        "sample_data": data_values or sample_data,
-        "sample_memory": memory_values or sample_memory,
-    }
+    template_context = render_context.get_template_variables()
+    template_context.update(
+        {
+            "sample_data": data_values or sample_data,
+            "sample_memory": memory_values or sample_memory,
+        }
+    )
 
     render_result = render_context_for_llm(
         blueprint=blueprint,
@@ -416,8 +437,10 @@ def render_instruction(
         if not step:
             raise ValueError(f"Step '{step_id}' not found in blueprint.")
         refs = step.instruction_refs
+        context_step_id = step_id
     else:
         # Render single instruction by ID
+        context_step_id = None
         if instruction_id:
             # Find instruction in global or step instructions
             refs = [
@@ -429,14 +452,28 @@ def render_instruction(
                         ref for ref in step.instruction_refs if ref.instruction_id == instruction_id
                     ]
                     if refs:
+                        context_step_id = step.step_id
                         break
             if not refs:
                 raise ValueError(f"Instruction '{instruction_id}' not found in blueprint.")
         else:
             raise ValueError("Either instruction_id or step_id must be provided.")
 
+    # Resolve data/memory if needed? render_instruction currently doesn't take inputs.
+    # We assume empty/default context if not provided.
+    # TODO: Consider if render_instruction should accept data/memory inputs.
+    # For now, we build context with empty data/memory.
+    render_context = build_instruction_context(
+        blueprint=blueprint,
+        data={},
+        memory={},
+        step_id=context_step_id,
+    )
+
     instruction_ids: list[str] = []
-    texts, warnings, error = previewer._resolve_instruction_text(refs, instruction_ids)
+    texts, warnings, error = previewer._resolve_instruction_text(
+        refs, instruction_ids, context=render_context
+    )
     if error:
         raise error
     return "\n\n".join(texts)

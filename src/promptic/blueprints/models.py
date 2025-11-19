@@ -70,13 +70,17 @@ class InstructionNode(BaseModel):
 
     instruction_id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_\-./]+$")
     source_uri: AnyUrl | FilePath | str
-    format: Literal["md", "txt", "jinja"]
+    format: Literal["md", "txt", "jinja", "yaml", "yml"]
     checksum: str = Field(..., min_length=32, max_length=64)
     locale: str = Field(default="en-US", min_length=2, max_length=16)
     version: str = Field(default="0.0.1", min_length=1, max_length=32)
     provider_key: str = Field(default="filesystem_default", min_length=1, max_length=64)
     fallback_policy: InstructionFallbackPolicy = Field(default=InstructionFallbackPolicy.ERROR)
     placeholder_template: Optional[str] = Field(default=None, max_length=512)
+    pattern: Optional[str] = Field(
+        default=None,
+        description="Regex pattern for custom placeholder substitution (required group 'placeholder').",
+    )
 
 
 class DataSlot(BaseModel):

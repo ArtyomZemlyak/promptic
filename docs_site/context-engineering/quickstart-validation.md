@@ -33,3 +33,13 @@ Pipeline Run (284.5ms)
 The rendered context includes both CSV rows without any Python edits, and the
 execution log proves adapter swaps remain isolated behind the materializer. See
 the integration test for the full fixture setup.
+
+## Latest Run (2025-11-19)
+
+Command: `pytest tests/integration/test_quickstart_validation.py`
+
+Result: `1 passed in 0.37s`
+
+This confirms the documented quickstart remains green after introducing the
+template renderer changes (Markdown, Jinja2, YAML) and loop-aware context
+builder.

@@ -1,0 +1,195 @@
+openapi: 3.0.1
+info:
+  title: Instruction Templating API Contract
+  version: 0.1.0
+  description: >
+    Reference contract for instruction template rendering functionality.
+    This contract defines the interface and behavior for format-specific renderers
+    and the template rendering abstraction.
+components:
+  schemas:
+    InstructionRenderContext:
+      type: object
+      required: [data, memory]
+      properties:
+        data:
+          type: object
+          description: Data slot values (namespaced as `data.*` in templates)
+          additionalProperties: true
+        memory:
+          type: object
+          description: Memory slot values (namespaced as `memory.*` in templates)
+          additionalProperties: true
+        step:
+          $ref: '#/components/schemas/StepContext'
+        blueprint:
+          type: object
+          description: Blueprint metadata (full blueprint dump)
+          additionalProperties: true
+    StepContext:
+      type: object
+      required: [step_id, title, kind]
+      properties:
+        step_id:
+          type: string
+          description: Current step identifier
+        title:
+          type: string
+          description: Step title
+        kind:
+          type: string
+          enum: [sequence, loop, branch]
+          description: Step kind
+        hierarchy:
+          type: array
+          items:
+            type: string
+          description: Parent step IDs (hierarchical position)
+        loop_item:
+          description: Current loop iteration item (for loop steps)
+          additionalProperties: true
+    TemplateRenderError:
+      type: object
+      required: [instruction_id, format, error_type, message]
+      properties:
+        instruction_id:
+          type: string
+          description: Instruction that failed to render
+        format:
+          type: string
+          enum: [md, txt, jinja, yaml, yml]
+          description: Instruction format
+        error_type:
+          type: string
+          enum: [missing_placeholder, syntax_error, type_mismatch, circular_reference]
+          description: Type of rendering error
+        message:
+          type: string
+          description: Descriptive error message
+        line_number:
+          type: integer
+          nullable: true
+          description: Line number where error occurred (if applicable)
+        placeholder:
+          type: string
+          nullable: true
+          description: Placeholder that caused error (if applicable)
+    FormatRenderer:
+      type: object
+      description: Interface for format-specific renderer implementations
+      properties:
+        render:
+          type: object
+          description: Renders content with template context using format-specific syntax
+          properties:
+            content:
+              type: string
+              description: Instruction content to render
+            context:
+              $ref: '#/components/schemas/InstructionRenderContext'
+          required: [content, context]
+        supports_format:
+          type: object
+          description: Returns True if this renderer supports the given format
+          properties:
+            format:
+              type: string
+              enum: [md, txt, jinja, yaml, yml]
+          required: [format]
+    TemplateRenderer:
+      type: object
+      description: Abstraction that coordinates format-specific rendering
+      properties:
+        render:
+          type: object
+          description: Renders instruction content with template context
+          properties:
+            instruction_node:
+              $ref: '#/components/schemas/InstructionNode'
+            content:
+              type: string
+              description: Instruction content
+            context:
+              $ref: '#/components/schemas/InstructionRenderContext'
+          required: [instruction_node, content, context]
+    InstructionNode:
+      type: object
+      required: [instruction_id, format]
+      properties:
+        instruction_id:
+          type: string
+        format:
+          type: string
+          enum: [md, txt, jinja]
+        pattern:
+          type: string
+          nullable: true
+          description: Custom placeholder pattern for YAML format (optional)
+  parameters:
+    InstructionFormat:
+      name: format
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [md, txt, jinja, yaml, yml]
+      description: Instruction format for rendering
+    InstructionId:
+      name: instruction_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Instruction identifier
+paths:
+  /render:
+    post:
+      summary: Render instruction with template context
+      description: >
+        Renders instruction content with template context using format-specific renderer.
+        Format is determined by instruction_node.format field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction_node, content, context]
+              properties:
+                instruction_node:
+                  $ref: '#/components/schemas/InstructionNode'
+                content:
+                  type: string
+                  description: Instruction content to render
+                context:
+                  $ref: '#/components/schemas/InstructionRenderContext'
+      responses:
+        "200":
+          description: Rendered instruction content
+          content:
+            text/plain:
+              schema:
+                type: string
+        "400":
+          description: Template rendering error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateRenderError'
+  /renderers:
+    get:
+      summary: List available format renderers
+      description: Returns list of supported instruction formats and their renderers
+      responses:
+        "200":
+          description: List of supported formats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  formats:
+                    type: array
+                    items:
+                      type: string
+                      enum: [md, txt, jinja, yaml, yml]

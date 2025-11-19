@@ -12,8 +12,10 @@ from promptic.blueprints.models import (
 )
 from promptic.context.errors import OperationResult, PrompticError
 from promptic.context.rendering import render_context_preview
+from promptic.context.template_context import InstructionRenderContext, build_instruction_context
 from promptic.pipeline.builder import BlueprintBuilder
 from promptic.pipeline.context_materializer import ContextMaterializer
+from promptic.pipeline.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +36,11 @@ class ContextPreviewer:
         *,
         builder: BlueprintBuilder,
         materializer: ContextMaterializer,
+        template_renderer: TemplateRenderer | None = None,
     ) -> None:
         self._builder = builder
         self._materializer = materializer
+        self._template_renderer = template_renderer or TemplateRenderer()
 
     def preview(
         self,
@@ -93,10 +97,18 @@ class ContextPreviewer:
             return OperationResult.failure(memory_error, warnings=aggregate_warnings)
         memory_values = memory_result.unwrap()
 
+        # Build base render context
+        render_context = build_instruction_context(
+            blueprint=blueprint,
+            data=data_values,
+            memory=memory_values,
+        )
+
         instruction_ids: list[str] = []
         global_instruction_text, warnings, instruction_error = self._resolve_instruction_text(
             blueprint.global_instructions,
             instruction_ids,
+            context=render_context,
         )
         aggregate_warnings.extend(warnings)
         fallback_events.extend(self._materializer.consume_fallback_events())
@@ -104,21 +116,25 @@ class ContextPreviewer:
             return OperationResult.failure(instruction_error, warnings=aggregate_warnings)
 
         step_text, step_warnings, step_error = self._resolve_step_instructions(
-            blueprint.steps, instruction_ids
+            blueprint.steps,
+            instruction_ids,
+            blueprint=blueprint,
+            data=data_values,
+            memory=memory_values,
         )
         aggregate_warnings.extend(step_warnings)
         fallback_events.extend(self._materializer.consume_fallback_events())
         if step_error:
             return OperationResult.failure(step_error, warnings=aggregate_warnings)
 
-        template_context = {
-            "blueprint": blueprint.model_dump(),
-            "data": data_values,
-            "memory": memory_values,
-            # Back-compat names used throughout the docs.
-            "sample_data": data_values or sample_data,
-            "sample_memory": memory_values or sample_memory,
-        }
+        template_context = render_context.get_template_variables()
+        template_context.update(
+            {
+                # Back-compat names used throughout the docs.
+                "sample_data": data_values or sample_data,
+                "sample_memory": memory_values or sample_memory,
+            }
+        )
 
         render_result = render_context_preview(
             blueprint=blueprint,
@@ -151,6 +167,9 @@ class ContextPreviewer:
         self,
         steps: Sequence[BlueprintStep],
         instruction_ids: list[str],
+        blueprint: ContextBlueprint,
+        data: dict[str, Any],
+        memory: dict[str, Any],
     ) -> tuple[dict[str, list[str]], list[str], PrompticError | None]:
         mapping: dict[str, list[str]] = {}
         warnings: list[str] = []
@@ -158,8 +177,18 @@ class ContextPreviewer:
 
         def _walk(step: BlueprintStep) -> bool:
             nonlocal encountered_error
+
+            step_context = build_instruction_context(
+                blueprint=blueprint,
+                data=data,
+                memory=memory,
+                step_id=step.step_id,
+            )
+
             texts, step_warnings, error = self._resolve_instruction_text(
-                step.instruction_refs, instruction_ids
+                step.instruction_refs,
+                instruction_ids,
+                context=step_context,
             )
             warnings.extend(step_warnings)
             if error:
@@ -184,6 +213,7 @@ class ContextPreviewer:
         self,
         refs: Sequence[InstructionNodeRef],
         instruction_ids: list[str],
+        context: InstructionRenderContext,
     ) -> tuple[list[str], list[str], PrompticError | None]:
         if not refs:
             return [], [], None
@@ -195,7 +225,14 @@ class ContextPreviewer:
         payloads = []
         for node, content in result.unwrap():
             instruction_ids.append(node.instruction_id)
-            payloads.append(content)
+            try:
+                rendered = self._template_renderer.render(node, content, context)
+                payloads.append(rendered)
+            except PrompticError as e:
+                # If rendering fails, we should probably fail the whole operation
+                # or degrade gracefully depending on policy?
+                # For now, returning error.
+                return [], warnings, e
         return payloads, warnings, None
 
     @staticmethod
