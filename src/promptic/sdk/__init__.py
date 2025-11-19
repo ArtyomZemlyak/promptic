@@ -7,6 +7,7 @@ from .api import (
     preview_blueprint,
     run_pipeline,
 )
+from .blueprints import export_blueprint_schema, list_blueprints
 
 __all__ = [
     "ExecutionResponse",
@@ -14,4 +15,6 @@ __all__ = [
     "build_materializer",
     "preview_blueprint",
     "run_pipeline",
+    "export_blueprint_schema",
+    "list_blueprints",
 ]

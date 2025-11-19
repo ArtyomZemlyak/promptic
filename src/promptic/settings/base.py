@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,6 +21,19 @@ class AdapterRegistrySettings(BaseModel):
     refresh_on_startup: bool = Field(
         default=True,
         description="Whether to rebuild the adapter registry cache each time settings load.",
+    )
+    data_defaults: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Optional default configuration payloads per data adapter key.",
+    )
+    memory_defaults: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Optional default configuration payloads per memory provider key.",
+    )
+    max_retries: int = Field(
+        default=1,
+        ge=0,
+        description="Number of retry attempts when adapters raise recoverable errors.",
     )
 
 

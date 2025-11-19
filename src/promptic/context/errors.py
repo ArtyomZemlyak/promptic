@@ -20,6 +20,10 @@ class BlueprintValidationError(PrompticError):
     """Represents structural or logical blueprint problems."""
 
 
+class BlueprintLoadError(PrompticError):
+    """Raised when a blueprint file cannot be located or parsed."""
+
+
 class AdapterRegistrationError(PrompticError):
     """Raised when adapter registration metadata is invalid."""
 
@@ -36,6 +40,16 @@ class AdapterNotRegisteredError(PrompticError):
 
 class AdapterExecutionError(PrompticError):
     """Encapsulates runtime failures raised by adapters."""
+
+
+class AdapterRetryError(AdapterExecutionError):
+    """Raised when an adapter exhausts its retry budget."""
+
+    def __init__(self, key: str, attempts: int, last_error: AdapterExecutionError) -> None:
+        super().__init__(f"Adapter '{key}' failed after {attempts} attempts: {last_error}")
+        self.key = key
+        self.attempts = attempts
+        self.last_error = last_error
 
 
 class ContextMaterializationError(PrompticError):
@@ -83,6 +97,8 @@ __all__ = [
     "AdapterExecutionError",
     "AdapterNotRegisteredError",
     "AdapterRegistrationError",
+    "AdapterRetryError",
+    "BlueprintLoadError",
     "BlueprintValidationError",
     "ContextMaterializationError",
     "InstructionNotFoundError",

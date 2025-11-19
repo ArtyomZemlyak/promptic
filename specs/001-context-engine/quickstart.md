@@ -45,35 +45,44 @@ memory_slots:
 ```
 
 ## 3. Register Adapters
-Implement adapters (or reuse built-ins) and register them in `settings.adapters`:
+Use the SDK helpers to register built-in adapters and configure defaults via settings:
 ```python
-from promptic.adapters import registry
-from my_project.adapters import CsvSource, QdrantMemory
+from promptic.adapters import AdapterRegistry
+from promptic.sdk import adapters as sdk_adapters
+from promptic.settings.base import ContextEngineSettings
 
-registry.register_data("csv_loader", CsvSource)
-registry.register_memory("vector_db", QdrantMemory)
+registry = AdapterRegistry()
+sdk_adapters.register_csv_loader("csv_loader", registry=registry)
+sdk_adapters.register_static_memory_provider("vector_db", registry=registry)
+
+settings = ContextEngineSettings()
+settings.adapter_registry.data_defaults["csv_loader"] = {"path": "data/sources.csv"}
+settings.adapter_registry.memory_defaults["vector_db"] = {"values": ["vector://finding-123"]}
 ```
 Adapters inherit from `BaseAdapter`/`BaseMemoryProvider` and accept `BaseSettings` configs. Registration can run at import time or via plugin entry points.
 
 ## 4. Preview & Execute
 ```python
 from promptic.sdk import blueprints, pipeline
+from promptic.sdk.api import build_materializer
 
+materializer = build_materializer(settings=settings, registry=registry)
 preview = blueprints.preview_blueprint(
     blueprint_id="research-flow",
-    sample_data={"sources": [{"title": "Paper A", "url": "https://example.com"}]},
+    settings=settings,
+    materializer=materializer,
 )
 print(preview.rendered_context)
 
 run = pipeline.run_pipeline(
     blueprint_id="research-flow",
-    data_inputs={"sources": [{"title": "Paper A", "url": "https://example.com"}]},
-    memory_inputs={"prior_findings": ["vector://finding-123"]},
+    settings=settings,
+    materializer=materializer,
 )
 for event in run.events:
     print(event.event_type, event.payload)
 ```
-Both `blueprints.preview_blueprint` and `pipeline.run_pipeline` resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated even in US1. Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`.
+Both `blueprints.preview_blueprint` and `pipeline.run_pipeline` resolve data/memory via the injected `ContextMaterializer`, so adapters remain encapsulated even in US1. Preview rendering highlights unresolved placeholders, while execution logs every instruction/data/memory lookup to `logs/research-flow.jsonl`. To swap sources, register a different adapter under the same key (e.g., `sdk_adapters.register_http_loader("csv_loader", registry=AdapterRegistry())`) and provide new defaults—no blueprint changes required.
 
 ## 5. Audit Outputs
 - Inspect `logs/*.jsonl` for `size_warning` or `error` events.

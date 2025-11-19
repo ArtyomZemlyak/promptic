@@ -61,6 +61,44 @@ adapter with strongly-typed settings whenever callers supply a plain dict.
 This keeps the core library lean while enabling applications to ship adapters
 in separate packages.
 
+## SDK Helper Functions & Sample Adapters
+
+`promptic.sdk.adapters` exposes convenience wrappers so applications can register
+adapters without importing the registry directly. The helpers also ship reference
+implementations that cover common bootstrap scenarios:
+
+```python
+from promptic.adapters import AdapterRegistry
+from promptic.sdk import adapters as sdk_adapters
+from promptic.settings import ContextEngineSettings
+
+registry = AdapterRegistry()
+
+sko = sdk_adapters.register_csv_loader(key="research_sources", registry=registry)
+sko = sdk_adapters.register_http_loader(key="research_sources_http", registry=registry)
+sdk_adapters.register_static_memory_provider(key="research_memory", registry=registry)
+
+settings = ContextEngineSettings()
+settings.adapter_registry.data_defaults["research_sources"] = {"path": "data/sources.csv"}
+settings.adapter_registry.data_defaults["research_sources_http"] = {"endpoint": "https://api.example/data"}
+settings.adapter_registry.memory_defaults["research_memory"] = {"values": ["seed"]}
+```
+
+Two data adapters are bundled today:
+
+- `CSVDataAdapter`: reads CSV files via `CSVAdapterSettings` (path, delimiter, encoding)
+  and returns a list of dictionaries suitable for JSON serialization.
+- `HttpJSONAdapter`: performs a GET request using Python's standard library and returns
+  parsed JSON (lists or single documents).
+
+On the memory side we ship:
+
+- `StaticMemoryProvider`: returns a preconfigured list of records (e.g., canned history snippets).
+- `VectorMemoryProvider`: slices a configured record set to simulate retrieving the top-N embeddings.
+
+Applications can still subclass the base adapters when they need custom logic; the helpers
+simply reduce boilerplate for the common cases outlined in the spec.
+
 ## Consumption via the Context Materializer
 
 `ContextMaterializer.resolve_data()` and `resolve_memory()` request adapters by
@@ -70,3 +108,9 @@ materializer short-circuits the registry but still records the result so
 subsequent lookups avoid redundant work. Adapter failures are wrapped in
 `AdapterExecutionError` and propagated via `OperationResult`, giving SDK callers
 structured context for retries or rich error messaging.
+
+Phase 2 extends the materializer with TTL-aware caches (respecting `DataSlot.ttl_seconds`)
+and configurable retries (`ContextEngineSettings.adapter_registry.max_retries`). Default
+configuration payloads for each adapter key live under
+`ContextEngineSettings.adapter_registry.{data_defaults,memory_defaults}` so projects can
+lean on `pydantic-settings` rather than hardcoding parameters in code.

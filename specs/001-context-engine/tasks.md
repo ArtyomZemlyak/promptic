@@ -57,20 +57,20 @@
 
 ### Tests for User Story 1 (MANDATORY) ⚠️
 
-- [ ] T017 [P] [US1] Contract test verifying the SDK blueprint preview API (`promptic.sdk.blueprints.preview_blueprint`) in `tests/contract/test_blueprint_preview_sdk.py`, stubbing adapters behind `ContextMaterializer` to prove previews never access registries directly.
-- [ ] T018 [P] [US1] Integration test running the preview workflow end-to-end with sample assets via SDK helpers in `tests/integration/test_blueprint_preview_sdk.py`, injecting a fake `ContextMaterializer` and asserting all slot lookups flow through it.
-- [ ] T019 [US1] [P] Unit tests for blueprint builder + serializer edge cases in `tests/unit/blueprints/test_builder.py`.
+- [X] T017 [P] [US1] Contract test verifying the SDK blueprint preview API (`promptic.sdk.blueprints.preview_blueprint`) in `tests/contract/test_blueprint_preview_sdk.py`, stubbing adapters behind `ContextMaterializer` to prove previews never access registries directly.
+- [X] T018 [P] [US1] Integration test running the preview workflow end-to-end with sample assets via SDK helpers in `tests/integration/test_blueprint_preview_sdk.py`, injecting a fake `ContextMaterializer` and asserting all slot lookups flow through it.
+- [X] T019 [US1] [P] Unit tests for blueprint builder + serializer edge cases in `tests/unit/blueprints/test_builder.py`.
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Implement `BlueprintBuilder` service in `src/promptic/pipeline/builder.py` handling YAML ingestion and schema validation.
-- [ ] T021 [US1] Implement `ContextPreviewer` in `src/promptic/pipeline/previewer.py` merging prompt + instructions + placeholder data while resolving every data/memory slot exclusively via the injected `ContextMaterializer` interface (no registry access).
-- [ ] T022 [P] [US1] Expose blueprint builder/previewer via SDK façade functions in `src/promptic/sdk/blueprints.py`, ensuring the façades receive a `ContextMaterializer` dependency they pass through untouched.
-- [ ] T023 [P] [US1] Add filesystem instruction discovery + caching (LRU) in `src/promptic/instructions/cache.py`.
-- [ ] T024 [US1] Generate blueprint JSON Schema export helper surfaced via SDK (e.g., `src/promptic/sdk/blueprints.py`).
-- [ ] T025 [US1] Implement preview formatting with `rich` highlighting unresolved placeholders in `src/promptic/context/rendering.py`.
-- [ ] T026 [US1] Write docs/tutorial for blueprint authoring + SDK usage in `docs_site/context-engineering/blueprint-guide.md`.
-- [ ] T027 [US1] Add logging instrumentation (`# AICODE-NOTE` for caching strategy) and ensure preview helpers log used instruction IDs.
+- [X] T020 [US1] Implement `BlueprintBuilder` service in `src/promptic/pipeline/builder.py` handling YAML ingestion and schema validation.
+- [X] T021 [US1] Implement `ContextPreviewer` in `src/promptic/pipeline/previewer.py` merging prompt + instructions + placeholder data while resolving every data/memory slot exclusively via the injected `ContextMaterializer` interface (no registry access).
+- [X] T022 [P] [US1] Expose blueprint builder/previewer via SDK façade functions in `src/promptic/sdk/blueprints.py`, ensuring the façades receive a `ContextMaterializer` dependency they pass through untouched.
+- [X] T023 [P] [US1] Add filesystem instruction discovery + caching (LRU) in `src/promptic/instructions/cache.py`.
+- [X] T024 [US1] Generate blueprint JSON Schema export helper surfaced via SDK (e.g., `src/promptic/sdk/blueprints.py`).
+- [X] T025 [US1] Implement preview formatting with `rich` highlighting unresolved placeholders in `src/promptic/context/rendering.py`.
+- [X] T026 [US1] Write docs/tutorial for blueprint authoring + SDK usage in `docs_site/context-engineering/blueprint-guide.md`.
+- [X] T027 [US1] Add logging instrumentation (`# AICODE-NOTE` for caching strategy) and ensure preview helpers log used instruction IDs.
 
 **Checkpoint**: Blueprint authoring + preview experience complete and testable independently.
 
@@ -84,19 +84,19 @@
 
 ### Tests for User Story 2 (MANDATORY) ⚠️
 
-- [ ] T028 [P] [US2] Contract test for adapter registration SDK flows (registry APIs) in `tests/contract/test_adapter_registry.py`.
-- [ ] T029 [P] [US2] Integration test that swaps CSV vs HTTP adapters and mock memory provider during preview/execution in `tests/integration/test_adapter_swaps.py`, verifying both preview and executor paths interact with adapters only through `ContextMaterializer`.
-- [ ] T030 [US2] Unit tests for adapter base classes + registry errors in `tests/unit/adapters/test_base.py`.
+- [X] T028 [P] [US2] Contract test for adapter registration SDK flows (registry APIs) in `tests/contract/test_adapter_registry.py`.
+- [X] T029 [P] [US2] Integration test that swaps CSV vs HTTP adapters and mock memory provider during preview/execution in `tests/integration/test_adapter_swaps.py`, verifying both preview and executor paths interact with adapters only through `ContextMaterializer`.
+- [X] T030 [US2] Unit tests for adapter base classes + registry errors in `tests/unit/adapters/test_base.py`.
 
 ### Implementation for User Story 2
 
-- [ ] T031 [US2] Implement adapter registration SDK utilities in `src/promptic/sdk/adapters.py` exposing register/list helpers.
-- [ ] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/`.
-- [ ] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/`.
-- [ ] T034 [US2] Expand `ContextMaterializer` orchestration (caching, retries, structured errors) so `PipelineExecutor` and any remaining helpers delegate every slot lookup to it while keeping the adapter registry encapsulated in `src/promptic/pipeline/context_materializer.py`.
-- [ ] T035 [US2] Implement error handling + retries for adapter failures in `src/promptic/context/errors.py`.
-- [ ] T036 [US2] Document adapter lifecycle + configuration (Pydantic settings examples) in `docs_site/context-engineering/adapter-guide.md`.
-- [ ] T037 [US2] Update quickstart (`quickstart.md`) with examples showing adapter registration + swapping.
+- [X] T031 [US2] Implement adapter registration SDK utilities in `src/promptic/sdk/adapters.py` exposing register/list helpers.
+- [X] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/`.
+- [X] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/`.
+- [X] T034 [US2] Expand `ContextMaterializer` orchestration (caching, retries, structured errors) so `PipelineExecutor` and any remaining helpers delegate every slot lookup to it while keeping the adapter registry encapsulated in `src/promptic/pipeline/context_materializer.py`.
+- [X] T035 [US2] Implement error handling + retries for adapter failures in `src/promptic/context/errors.py`.
+- [X] T036 [US2] Document adapter lifecycle + configuration (Pydantic settings examples) in `docs_site/context-engineering/adapter-guide.md`.
+- [X] T037 [US2] Update quickstart (`quickstart.md`) with examples showing adapter registration + swapping.
 
 **Checkpoint**: Blueprint rendering/execution honors pluggable adapters with tests proving swap-ability.
 
@@ -110,19 +110,19 @@
 
 ### Tests for User Story 3 (MANDATORY) ⚠️
 
-- [ ] T038 [P] [US3] Contract test for the SDK pipeline execution API (`promptic.sdk.pipeline.run_pipeline`) returning `ExecutionAck` and validating payload schema in `tests/contract/test_pipeline_execute.py`.
-- [ ] T039 [P] [US3] Integration scenario test running the full 5-step pipeline with mock agent hooks in `tests/integration/test_pipeline_executor.py`.
-- [ ] T040 [US3] Unit tests for `PipelineExecutor` traversal + logging events in `tests/unit/pipeline/test_executor.py`, asserting all slot lookups go through a mocked `ContextMaterializer`.
+- [X] T038 [P] [US3] Contract test for the SDK pipeline execution API (`promptic.sdk.pipeline.run_pipeline`) returning `ExecutionAck` and validating payload schema in `tests/contract/test_pipeline_execute.py`.
+- [X] T039 [P] [US3] Integration scenario test running the full 5-step pipeline with mock agent hooks in `tests/integration/test_pipeline_executor.py`.
+- [X] T040 [US3] Unit tests for `PipelineExecutor` traversal + logging events in `tests/unit/pipeline/test_executor.py`, asserting all slot lookups go through a mocked `ContextMaterializer`.
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Implement `PipelineExecutor` in `src/promptic/pipeline/executor.py` supporting sequence/loop/branch semantics and structured logging.
-- [ ] T042 [US3] Add execution log writers (JSONL + SDK trace helpers) in `src/promptic/pipeline/loggers.py`.
-- [ ] T043 [US3] Implement per-step policy enforcement (size budgets, optional branches) in `src/promptic/pipeline/policies.py`.
-- [ ] T044 [P] [US3] Provide mock agent integration hooks allowing custom callbacks per step in `src/promptic/pipeline/hooks.py`.
-- [ ] T045 [US3] Extend docs with execution recipes + troubleshooting in `docs_site/context-engineering/execution-recipes.md`.
-- [ ] T046 [US3] Ensure executor emits `# AICODE-NOTE` detailing design decisions around traversal order and error boundaries.
-- [ ] T047 [US3] Update quickstart to include pipeline run + trace SDK usage and sample logs.
+- [X] T041 [US3] Implement `PipelineExecutor` in `src/promptic/pipeline/executor.py` supporting sequence/loop/branch semantics and structured logging.
+- [X] T042 [US3] Add execution log writers (JSONL + SDK trace helpers) in `src/promptic/pipeline/loggers.py`.
+- [X] T043 [US3] Implement per-step policy enforcement (size budgets, optional branches) in `src/promptic/pipeline/policies.py`.
+- [X] T044 [P] [US3] Provide mock agent integration hooks allowing custom callbacks per step in `src/promptic/pipeline/hooks.py`.
+- [X] T045 [US3] Extend docs with execution recipes + troubleshooting in `docs_site/context-engineering/execution-recipes.md`.
+- [X] T046 [US3] Ensure executor emits `# AICODE-NOTE` detailing design decisions around traversal order and error boundaries.
+- [X] T047 [US3] Update quickstart to include pipeline run + trace SDK usage and sample logs.
 
 **Checkpoint**: Hierarchical execution complete, logs/audits in place, tests prove nested instruction handling.
 
