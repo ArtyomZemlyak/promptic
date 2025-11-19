@@ -132,18 +132,31 @@ class AdapterRegistration(BaseModel):
 
 
 class ExecutionLogEntry(BaseModel):
-    """Structured JSONL log payload emitted by the executor."""
+    """Structured JSONL log payload emitted by the executor.
+
+    # AICODE-NOTE: Schema matches clarified logging format with timestamp, level,
+    #              event_type, blueprint_id, step_id, asset_id, and metadata fields
+    #              for structured querying and audit trails.
+    """
 
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    step_id: str = Field(..., min_length=1)
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO")
     event_type: Literal[
+        "instruction_accessed",
         "instruction_loaded",
         "instruction_fallback",
+        "adapter_resolved",
+        "fallback_applied",
         "data_resolved",
         "memory_resolved",
         "size_warning",
         "error",
     ]
+    blueprint_id: Optional[str] = Field(default=None, min_length=1)
+    step_id: str = Field(..., min_length=1)
+    asset_id: Optional[str] = Field(default=None, min_length=1)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    # Legacy fields for backward compatibility
     payload: Dict[str, Any] = Field(default_factory=dict)
     reference_ids: List[str] = Field(default_factory=list)
 

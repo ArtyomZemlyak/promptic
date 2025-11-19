@@ -74,6 +74,7 @@ class PipelineExecutor:
         aggregate_warnings.extend(blueprint_result.warnings)
 
         self._logger.events.clear()
+        self._logger.blueprint_id = str(blueprint.id)
 
         warm_result = self._materializer.prefetch_instructions(blueprint)
         aggregate_warnings.extend(warm_result.warnings)

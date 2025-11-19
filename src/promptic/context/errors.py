@@ -63,6 +63,42 @@ class AdapterNotRegisteredError(PrompticError):
         self.adapter_type = adapter_type
 
 
+# Alias for consistency with spec terminology
+AdapterNotFoundError = AdapterNotRegisteredError
+
+
+class ContextSizeExceededError(PrompticError):
+    """Raised when context size limits are exceeded."""
+
+    def __init__(self, step_id: str, actual_size: int, limit: int) -> None:
+        message = f"Step '{step_id}' exceeded context size limit ({actual_size} > {limit})."
+        super().__init__(
+            message,
+            code="CONTEXT_SIZE_EXCEEDED",
+            hint="Reduce step content or increase size_budget.per_step_budget_chars in settings.",
+            context={"step_id": step_id, "actual_size": actual_size, "limit": limit},
+        )
+        self.step_id = step_id
+        self.actual_size = actual_size
+        self.limit = limit
+
+
+class AdapterUnavailableError(PrompticError):
+    """Raised when an adapter is unavailable after retries."""
+
+    def __init__(self, key: str, adapter_type: str, reason: str) -> None:
+        message = f"{adapter_type} adapter '{key}' is unavailable: {reason}."
+        super().__init__(
+            message,
+            code="ADAPTER_UNAVAILABLE",
+            hint="Check adapter configuration and network connectivity, or configure fallback policy.",
+            context={"adapter_key": key, "adapter_type": adapter_type, "reason": reason},
+        )
+        self.key = key
+        self.adapter_type = adapter_type
+        self.reason = reason
+
+
 class AdapterExecutionError(PrompticError):
     """Encapsulates runtime failures raised by adapters."""
 
@@ -148,12 +184,15 @@ def describe_error(error: PrompticError) -> ErrorDetail:
 
 __all__ = [
     "AdapterExecutionError",
+    "AdapterNotFoundError",
     "AdapterNotRegisteredError",
     "AdapterRegistrationError",
     "AdapterRetryError",
+    "AdapterUnavailableError",
     "BlueprintLoadError",
     "BlueprintValidationError",
     "ContextMaterializationError",
+    "ContextSizeExceededError",
     "ErrorDetail",
     "InstructionNotFoundError",
     "LoggingError",
@@ -168,7 +207,10 @@ _DEFAULT_HINTS: dict[type[PrompticError], str] = {
     BlueprintValidationError: "Run BlueprintValidator to inspect structural issues.",
     BlueprintLoadError: "Ensure the blueprint file exists and is valid YAML/JSON.",
     AdapterNotRegisteredError: "Register the adapter or update the slot's adapter_key.",
+    AdapterNotFoundError: "Register the adapter or update the slot's adapter_key.",
     AdapterRetryError: "Retry the adapter (increase adapter_registry.max_retries) or inspect adapter logs for permanent failures.",
+    AdapterUnavailableError: "Check adapter configuration and network connectivity, or configure fallback policy.",
+    ContextSizeExceededError: "Reduce step content or increase size_budget.per_step_budget_chars in settings.",
     ContextMaterializationError: "Check adapter outputs and overrides supplied to the SDK.",
     LoggingError: "Ensure the log directory is writable.",
 }

@@ -1,0 +1,16 @@
+name: Adapter Swap Demo
+prompt_template: >
+  Process the provided data sources and generate insights.
+data_slots:
+  - name: sources
+    adapter_key: csv_loader
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          title: {type: string}
+          url: {type: string}
+memory_slots:
+  - name: cache
+    provider_key: static_memory

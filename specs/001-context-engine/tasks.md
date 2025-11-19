@@ -19,7 +19,7 @@
 
 **Purpose**: Initialize repository plumbing, settings, and scaffolding required by all stories.
 
-- [X] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
+- [X] T001 Create `pyproject.toml` and configure poetry/pip settings for Python 3.11 with `pydantic>=2`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis` in project root.
 - [X] T002 Initialize package skeleton `src/promptic/__init__.py` and subpackages (`blueprints`, `instructions`, `pipeline`, `adapters`, `context`, `settings`, `sdk`).
 - [X] T003 Configure formatting and linting (`black`, `isort`, `mypy`) plus `pre-commit` hooks in `.pre-commit-config.yaml`.
 - [X] T004 [P] Add `ContextEngineSettings` using `pydantic-settings` in `src/promptic/settings/base.py` with filesystem roots, adapter registry config, and size budgets.
@@ -33,14 +33,16 @@
 
 **Purpose**: Core domain models, adapters infrastructure, and logging needed before any story-specific work.
 
-- [X] T008 Define domain models from data-model.md in `src/promptic/blueprints/models.py` (ContextBlueprint, BlueprintStep, InstructionNode, DataSlot, MemorySlot, AdapterRegistration, ExecutionLogEntry) with Pydantic validation.
-- [X] T009 Implement instruction storage interfaces (`InstructionStore`, `InstructionResolver`) and filesystem-backed implementation in `src/promptic/instructions/store.py`.
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+
+- [X] T008 Define domain models from data-model.md in `src/promptic/blueprints/models.py` (ContextBlueprint, BlueprintStep, InstructionNode, InstructionNodeRef, InstructionFallbackPolicy, InstructionFallbackConfig, DataSlot, MemorySlot, AdapterRegistration, ExecutionLogEntry) with Pydantic validation.
+- [X] T009 Implement instruction storage interfaces (`InstructionStore`, `InstructionResolver`) and filesystem-backed implementation with multi-format support (Markdown, JSON, YAML, plain-text) and auto-detection in `src/promptic/instructions/store.py`, converting all formats to JSON as canonical format.
 - [X] T010 Implement adapter registry infrastructure (`BaseAdapter`, `BaseMemoryProvider`, registration API) in `src/promptic/adapters/registry.py` with plugin loading hooks.
 - [X] T010a Implement dedicated `ContextMaterializer` use case in `src/promptic/pipeline/context_materializer.py` to broker adapter registry lookups, caching, and structured errors for preview/execution flows.
-- [X] T011 Build event logging utility emitting JSONL entries in `src/promptic/context/logging.py`.
+- [X] T011 Build event logging utility emitting structured JSONL entries with schema (timestamp, level, event_type, blueprint_id, step_id, asset_id, metadata) in `src/promptic/context/logging.py`.
 - [X] T012 Implement blueprint serializer/deserializer (YAML + JSON Schema export) in `src/promptic/blueprints/serialization.py`.
 - [X] T013 [P] Create validation services (`BlueprintValidator`) handling cycles, asset existence, and size budgets in `src/promptic/pipeline/validation.py`.
-- [X] T014 [P] Add shared error types and result objects in `src/promptic/context/errors.py`.
+- [X] T014 [P] Add shared error types (BlueprintValidationError, AdapterNotFoundError, ContextSizeExceededError, AdapterUnavailableError) and structured error result objects in `src/promptic/context/errors.py` implementing hybrid error handling (exceptions for fatal, structured dicts for warnings).
 - [X] T015 [P] Write foundational unit tests for models/registry/logging in `tests/unit/blueprints/test_models.py`, `tests/unit/adapters/test_registry.py`, `tests/unit/context/test_logging.py`.
 - [X] T015a [P] Add unit tests for `ContextMaterializer` cache/error paths in `tests/unit/pipeline/test_context_materializer.py`.
 - [X] T016 Document foundational architecture in `docs_site/context-engineering/blueprint-guide.md` and `adapter-guide.md` sections describing domain layering, registries, and the `ContextMaterializer` role.
@@ -71,6 +73,7 @@
 - [X] T025 [US1] Implement preview formatting with `rich` highlighting unresolved placeholders in `src/promptic/context/rendering.py`.
 - [X] T026 [US1] Write docs/tutorial for blueprint authoring + SDK usage in `docs_site/context-engineering/blueprint-guide.md`.
 - [X] T027 [US1] Add logging instrumentation (`# AICODE-NOTE` for caching strategy) and ensure preview helpers log used instruction IDs.
+- [X] T027a [US1] Create examples directory structure `examples/us1-blueprints/` with README.md, sample blueprint YAML, instruction files, and runnable Python script demonstrating blueprint authoring and preview in `examples/us1-blueprints/run_preview.py`.
 
 **Checkpoint**: Blueprint authoring + preview experience complete and testable independently.
 
@@ -91,12 +94,13 @@
 ### Implementation for User Story 2
 
 - [X] T031 [US2] Implement adapter registration SDK utilities in `src/promptic/sdk/adapters.py` exposing register/list helpers.
-- [X] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/`.
-- [X] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/`.
+- [X] T032 [US2] Build data adapter base classes plus sample adapters (CSV loader, HTTP fetcher) in `src/promptic/adapters/data/csv_loader.py` and `src/promptic/adapters/data/http_fetcher.py`.
+- [X] T033 [US2] Build memory provider base classes plus sample vector/memory adapters in `src/promptic/adapters/memory/vector_store.py`.
 - [X] T034 [US2] Expand `ContextMaterializer` orchestration (caching, retries, structured errors) so `PipelineExecutor` and any remaining helpers delegate every slot lookup to it while keeping the adapter registry encapsulated in `src/promptic/pipeline/context_materializer.py`.
 - [X] T035 [US2] Implement error handling + retries for adapter failures in `src/promptic/context/errors.py`.
 - [X] T036 [US2] Document adapter lifecycle + configuration (Pydantic settings examples) in `docs_site/context-engineering/adapter-guide.md`.
 - [X] T037 [US2] Update quickstart (`quickstart.md`) with examples showing adapter registration + swapping.
+- [X] T037a [US2] Create examples directory `examples/us2-adapters/` with README.md, blueprint YAML, sample data files, and runnable Python script demonstrating adapter registration and swapping in `examples/us2-adapters/swap_adapters.py`.
 
 **Checkpoint**: Blueprint rendering/execution honors pluggable adapters with tests proving swap-ability.
 
@@ -123,8 +127,31 @@
 - [X] T045 [US3] Extend docs with execution recipes + troubleshooting in `docs_site/context-engineering/execution-recipes.md`.
 - [X] T046 [US3] Ensure executor emits `# AICODE-NOTE` detailing design decisions around traversal order and error boundaries.
 - [X] T047 [US3] Update quickstart to include pipeline run + trace SDK usage and sample logs.
+- [X] T047a [US3] Create examples directory `examples/us3-pipelines/` with README.md, hierarchical blueprint YAML, and runnable Python script demonstrating pipeline execution in `examples/us3-pipelines/run_pipeline.py`.
 
 **Checkpoint**: Hierarchical execution complete, logs/audits in place, tests prove nested instruction handling.
+
+---
+
+## Phase 6: Instruction Provider Fallbacks (Scope: CHK016)
+
+**Goal**: Define and enforce `InstructionFallbackPolicy` (`error`, `warn`, `noop`) so instruction providers can swap without editing core modules while emitting structured diagnostics, placeholders, and logs.
+
+**Independent Test**: Swap filesystem and HTTP instruction providers, force an outage, and prove previews/executions continue per fallback configuration, recording `fallback_events` without modifying blueprint or core classes.
+
+### Tests for Instruction Fallbacks (MANDATORY) ⚠️
+
+- [X] T055 [P] Add contract coverage for fallback diagnostics by extending `tests/contract/test_blueprint_preview_sdk.py` and `tests/contract/test_pipeline_execute.py` with scenarios that assert `fallback_events` and "no core edits" guidance in responses.
+- [X] T056 [P] Extend `tests/integration/test_adapter_swaps.py` (or add `test_instruction_fallbacks.py`) to simulate warn/noop policies across filesystem + HTTP providers, verifying placeholders and execution logs capture `instruction_fallback` events.
+- [X] T057 Add unit tests for materializer fallback helpers in `tests/unit/pipeline/test_context_materializer.py` and executor logging in `tests/unit/pipeline/test_executor.py`, ensuring placeholders, retries, and warnings follow the configured policy.
+
+### Implementation for Instruction Fallbacks
+
+- [X] T058 Update blueprint/data models and materializer orchestration (`src/promptic/blueprints/models.py`, `src/promptic/pipeline/context_materializer.py`, `src/promptic/pipeline/executor.py`) to accept `InstructionFallbackConfig`, wire placeholder rendering, and route events through structured logs.
+- [X] T059 Emit fallback diagnostics in logging/SDK layers by enhancing `src/promptic/context/logging.py`, `src/promptic/pipeline/loggers.py`, and `src/promptic/sdk/api.py` so preview/execution helpers expose `fallback_events` alongside existing outputs.
+- [X] T060 Refresh developer guidance by updating `src/promptic/sdk/blueprints.py`, `src/promptic/sdk/pipeline.py`, `specs/001-context-engine/quickstart.md`, and `docs_site/context-engineering/{adapter-guide.md,execution-recipes.md}` with examples showing how to configure fallback policies and interpret warnings.
+
+**Checkpoint**: Fallback semantics documented, enforced via tests, and observable through SDK responses/logs so CHK016 is satisfied.
 
 ---
 
@@ -139,28 +166,7 @@
 - [X] T052 [P] Add additional unit tests for uncovered branches reported by coverage in `tests/unit/`.
 - [X] T053 Run `quickstart.md` end-to-end validation and capture output snapshots in `docs_site/context-engineering/`.
 - [X] T054 Execute `pytest -m "unit or integration or contract"` and `pre-commit run --all-files`; attach evidence to PR.
-
----
-
-## Phase 6: Instruction Provider Fallbacks (Scope: CHK016)
-
-**Goal**: Define and enforce `InstructionFallbackPolicy` (`error`, `warn`, `noop`) so instruction providers can swap without editing core modules while emitting structured diagnostics, placeholders, and logs.
-
-**Independent Test**: Swap filesystem and HTTP instruction providers, force an outage, and prove previews/executions continue per fallback configuration, recording `fallback_events` without modifying blueprint or core classes.
-
-### Tests for Instruction Fallbacks (MANDATORY) ⚠️
-
-- [X] T055 [P] Add contract coverage for fallback diagnostics by extending `tests/contract/test_blueprint_preview_sdk.py` and `tests/contract/test_pipeline_execute.py` with scenarios that assert `fallback_events` and “no core edits” guidance in responses.
-- [X] T056 [P] Extend `tests/integration/test_adapter_swaps.py` (or add `test_instruction_fallbacks.py`) to simulate warn/noop policies across filesystem + HTTP providers, verifying placeholders and execution logs capture `instruction_fallback` events.
-- [X] T057 Add unit tests for materializer fallback helpers in `tests/unit/pipeline/test_context_materializer.py` and executor logging in `tests/unit/pipeline/test_executor.py`, ensuring placeholders, retries, and warnings follow the configured policy.
-
-### Implementation for Instruction Fallbacks
-
-- [X] T058 Update blueprint/data models and materializer orchestration (`src/promptic/blueprints/models.py`, `src/promptic/pipeline/context_materializer.py`, `src/promptic/pipeline/executor.py`) to accept `InstructionFallbackConfig`, wire placeholder rendering, and route events through structured logs.
-- [X] T059 Emit fallback diagnostics in logging/SDK layers by enhancing `src/promptic/context/logging.py`, `src/promptic/pipeline/loggers.py`, and `src/promptic/sdk/api.py` so preview/execution helpers expose `fallback_events` alongside existing outputs.
-- [X] T060 Refresh developer guidance by updating `src/promptic/sdk/blueprints.py`, `src/promptic/sdk/pipeline.py`, `specs/001-context-engine/quickstart.md`, and `docs_site/context-engineering/{adapter-guide.md,execution-recipes.md}` with examples showing how to configure fallback policies and interpret warnings.
-
-**Checkpoint**: Fallback semantics documented, enforced via tests, and observable through SDK responses/logs so CHK016 is satisfied.
+- [X] T054a Create comprehensive end-to-end examples directory `examples/complete/` with README.md, full research flow blueprint, instruction files, data files, and complete runnable script demonstrating all library functionality in `examples/complete/end_to_end.py`.
 
 ---
 
@@ -237,3 +243,4 @@ Track C: T024 (schema export) + T025 (rendering) + T026 docs
 - Respect Constitution checklist (SOLID, docs, readability, tests, pre-commit).
 - Every public SDK addition needs doc updates and `# AICODE-NOTE` comments for key trade-offs.
 - Keep tasks independent; stop after each story to validate tests + docs before moving forward.
+- Examples directory structure: `examples/us1-blueprints/`, `examples/us2-adapters/`, `examples/us3-pipelines/`, `examples/complete/` each with README, blueprint YAML, sample data, and runnable Python scripts.

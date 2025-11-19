@@ -1,44 +1,39 @@
-# Implementation Plan: Instruction Provider Fallbacks
+# Implementation Plan: Context Engineering Library
 
-**Branch**: `001-context-engine` | **Date**: 2025-11-19 | **Spec**: [`spec.md`](./spec.md)  
+**Branch**: `001-context-engine` | **Date**: 2025-01-27 | **Spec**: `/specs/001-context-engine/spec.md`
 **Input**: Feature specification from `/specs/001-context-engine/spec.md`
 
-**Note**: This plan focuses on closing SOLID checklist gap **CHK016** by defining explicit fallback semantics when alternate instruction providers substitute into preview/execution flows.
+**Note**: This template is filled in by the `/speckit.plan` command. Align every section with the `promptic Constitution` (clean architecture, SOLID, tests, docs, readability).
 
 ## Summary
 
-Define contractual fallback policies for instruction providers so blueprint previews and pipeline executions remain LSP-compliant when swapping instruction stores. Work adds policy metadata to instruction assets/materializer contracts, updates acceptance tests/docs, and wires SDK guidance so adapters can degrade predictably (error, warn-with-placeholder, noop). Deliverables include updated spec/plan/tasks, expanded research, data model changes, contract additions, and quickstart guidance proving adapters can swap without core code edits.
+This feature delivers a pure Python library for context engineering—unifying prompts, instructions, data, and memory into hierarchical, executable blueprints. Designers author blueprints as YAML files without editing Python code; integrators plug arbitrary data/memory adapters; automation engineers execute pipelines with per-step instruction resolution and comprehensive audit logs. The library follows clean architecture (Entities → Use Cases → Adapters) with SOLID boundaries, ensuring preview/execution flows interact with adapters only through the `ContextMaterializer` abstraction.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
 **Language/Version**: Python 3.11 (CPython)  
-**Primary Dependencies**: `pydantic`, `pydantic-settings`, `rich`, `jinja2`, `orjson`, `pytest`, `pytest-asyncio`, `hypothesis`  
-**Storage**: Local filesystem instruction assets by default; adapters encapsulate HTTP/CSV/vector stores  
-**Testing**: `pytest` (unit/integration/contract) with adapter/materializer stubs for substitution scenarios  
-**Target Platform**: Importable Python SDK (no CLI/HTTP services) running on Linux/macOS dev hosts + CI  
-**Project Type**: Single Python package under `src/promptic/` with clean architecture subpackages  
-**Performance Goals**: Preserve existing preview/execution budgets (≤500 ms preview for 5-step blueprints; adapter registry init <200 ms) while adding fallback checks with <5% overhead  
-**Constraints**: Context payloads <256 MB, functions <100 logical lines, adapters accessed only via `ContextMaterializer`  
-**Scale/Scope**: Support dozens of blueprints per process; multiple instruction providers (filesystem + remote) can coexist without core changes
+**Primary Dependencies**: `pydantic>=2`, `pydantic-settings`, `rich` (preview rendering), `jinja2` (templating), `orjson` (JSON serialization), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing), optional adapter extras (`httpx`, `sqlalchemy`, `faiss-cpu`)  
+**Storage**: Filesystem-backed instruction stores (Markdown/JSON/YAML/plain-text) with optional caching (LRU); data/memory adapters abstract storage (CSV, HTTP, vector DBs, etc.)  
+**Testing**: `pytest` with markers (`unit`, `integration`, `contract`), `pytest-asyncio` for async adapters, `hypothesis` for property-based validation  
+**Target Platform**: Python 3.11+ on Linux/macOS/Windows (pure library, no platform-specific code)  
+**Project Type**: Single Python library (SDK surface only; no CLI or HTTP endpoints)  
+**Performance Goals**: Optimize via profiling during development; size budgets (per-step context limits) serve as primary constraint mechanism  
+**Constraints**: Per-step context size limits configurable via settings; instruction caching to avoid redundant file reads; streaming/chunking for large data payloads  
+**Scale/Scope**: Support blueprints with 100+ steps; handle thousands of items in loop steps via batching; instruction assets stored as files (Git-friendly workflow)
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Architecture**: Instruction fallback logic lives in the use-case layer (`ContextMaterializer` and `PipelineExecutor`). Domain models (`InstructionNode`, `InstructionProviderPolicy`) describe allowable degradation. SDK façade remains adapter-agnostic—only receives policy outcomes. No direct adapter imports outside materializer.
-- **Testing Evidence**:
-  - Unit: `tests/unit/pipeline/test_context_materializer.py` extended for fallback policies, plus new instruction cache/provider tests.
-  - Integration: `tests/integration/test_pipeline_executor.py` and `test_adapter_swaps.py` prove degraded runs still pass without core edits.
-  - Contract: `tests/contract/test_pipeline_execute.py` + new contract cases verifying structured fallback diagnostics.
-- **Quality Gates**: Run Black/isort with line length 100, `pytest -m "unit or integration or contract"`, and `pre-commit run --all-files` before committing.
-- **Documentation & Traceability**: Update `spec.md` (Edge Cases + FR-004), `plan.md`, `tasks.md`, `data-model.md`, `contracts/context-engineering.yaml`, `docs_site/context-engineering/adapter-guide.md`, `execution-recipes.md`, and quickstart fallback section. Capture rationale in `# AICODE-NOTE` near fallback code.
-- **Readability & DX**: Introduce `InstructionFallbackPolicy` enum + helper functions (<100 lines each). Reuse existing logging infrastructure for diagnostics instead of bespoke systems.
+- **Architecture**: Clean architecture layers enforced: Entities (`ContextBlueprint`, `InstructionNode`, `DataSlot`, `MemorySlot`) in domain layer; Use Cases (`BlueprintBuilder`, `ContextPreviewer`, `PipelineExecutor`, `ContextMaterializer`) in application layer; Adapters (`InstructionStore`, `DataSourceAdapter`, `MemoryProvider`) in infrastructure layer with dependencies pointing inward. SOLID principles: SRP (separate authoring, validation, rendering, execution); DIP (use cases depend on adapter interfaces); OCP (new adapters register without core edits); LSP (custom executors extend behavior); ISP (instruction lookups separate from execution control). Trade-offs: `ContextMaterializer` introduces an extra abstraction layer but enforces encapsulation and simplifies testing—documented via `# AICODE-NOTE`.
+
+- **Testing Evidence**: Unit tests for domain models (`tests/unit/blueprints/test_models.py`), adapter contracts (`tests/unit/adapters/test_base.py`), instruction caching (`tests/unit/instructions/test_cache.py`), materializer fallback paths (`tests/unit/pipeline/test_context_materializer.py`). Integration tests: blueprint preview end-to-end (`tests/integration/test_blueprint_preview_sdk.py`), adapter swapping (`tests/integration/test_adapter_swaps.py`), full pipeline execution (`tests/integration/test_pipeline_executor.py`), instruction fallback scenarios (`tests/integration/test_instruction_fallbacks.py`). Contract tests: SDK blueprint preview API (`tests/contract/test_blueprint_preview_sdk.py`), pipeline execution API (`tests/contract/test_pipeline_execute.py`), adapter registration flows (`tests/contract/test_adapter_registry.py`). All tests run via `pytest -m "unit or integration or contract"` in CI.
+
+- **Quality Gates**: Black (line-length 100) and isort (profile black) formatting enforced via `pre-commit` hooks; `pre-commit run --all-files` must pass before commits. Static analysis: mypy type checking (strict mode for public APIs). No contributor may claim tooling unavailable—install dependencies per AGENTS.md.
+
+- **Documentation & Traceability**: Update `docs_site/context-engineering/` with blueprint authoring guide, adapter integration guide, execution recipes, and quickstart validation. Spec (`spec.md`), plan (`plan.md`), and inline docstrings stay synchronized. All `# AICODE-ASK` items resolved before merge; answers recorded in spec clarifications. Examples directory at repository root (`examples/`) organized by user story with README, blueprint YAML, sample data, and runnable Python scripts.
+
+- **Readability & DX**: Public functions limited to <100 logical lines; descriptive names (e.g., `render_context_preview`, `resolve_data_slot`). Small, intention-revealing modules: `BlueprintBuilder` (<100 lines), `ContextPreviewer` (<100 lines), `PipelineExecutor` (traversal logic <100 lines, delegates to helpers). Dead experimental code deleted after each milestone. SDK façades (`src/promptic/sdk/blueprints.py`, `src/promptic/sdk/pipeline.py`) provide ergonomic entry points; internal complexity hidden behind clean interfaces.
 
 ## Project Structure
 
@@ -46,42 +41,119 @@ Define contractual fallback policies for instruction providers so blueprint prev
 
 ```text
 specs/001-context-engine/
-├── plan.md              # Updated with fallback strategy (this file)
-├── research.md          # Phase 0 findings (includes fallback semantics)
-├── data-model.md        # Phase 1 entity rules (to include fallback policy fields)
-├── quickstart.md        # Phase 1 guide (will gain fallback usage section)
-├── contracts/
-│   └── context-engineering.yaml  # Phase 1 API contracts
-└── tasks.md             # Produced separately by /speckit.tasks
+├── plan.md              # This file (/speckit.plan command output)
+├── research.md          # Phase 0 output (/speckit.plan command)
+├── data-model.md        # Phase 1 output (/speckit.plan command)
+├── quickstart.md        # Phase 1 output (/speckit.plan command)
+├── contracts/           # Phase 1 output (/speckit.plan command)
+│   └── context-engineering.yaml
+└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
 src/
 └── promptic/
-    ├── adapters/
-    │   ├── data/
-    │   └── memory/
+    ├── __init__.py
     ├── blueprints/
-    ├── context/
+    │   ├── __init__.py
+    │   ├── models.py          # Domain entities (ContextBlueprint, BlueprintStep, InstructionNodeRef)
+    │   └── serialization.py    # YAML/JSON Schema serialization
     ├── instructions/
+    │   ├── __init__.py
+    │   ├── store.py            # InstructionStore interface + filesystem implementation
+    │   └── cache.py            # LRU caching for instruction assets
     ├── pipeline/
+    │   ├── __init__.py
+    │   ├── builder.py          # BlueprintBuilder use case
+    │   ├── previewer.py        # ContextPreviewer use case
+    │   ├── executor.py         # PipelineExecutor use case
+    │   ├── context_materializer.py  # ContextMaterializer orchestration
+    │   ├── validation.py       # BlueprintValidator
+    │   ├── policies.py         # Per-step policy enforcement
+    │   ├── hooks.py            # Mock agent integration hooks
+    │   └── loggers.py          # Execution log writers (JSONL)
+    ├── adapters/
+    │   ├── __init__.py
+    │   ├── registry.py         # AdapterRegistry, BaseAdapter, BaseMemoryProvider
+    │   ├── data/
+    │   │   ├── __init__.py
+    │   │   ├── csv_loader.py   # Sample CSV data adapter
+    │   │   └── http_fetcher.py # Sample HTTP data adapter
+    │   └── memory/
+    │       ├── __init__.py
+    │       └── vector_store.py # Sample vector memory provider
+    ├── context/
+    │   ├── __init__.py
+    │   ├── errors.py           # Domain exceptions + structured error types
+    │   ├── logging.py           # JSONL event logging utility
+    │   └── rendering.py       # Rich-based preview formatting
+    ├── settings/
+    │   ├── __init__.py
+    │   └── base.py             # ContextEngineSettings (pydantic-settings)
     └── sdk/
+        ├── __init__.py
+        ├── api.py              # SDK façade entry points
+        ├── blueprints.py       # Blueprint SDK helpers
+        ├── pipeline.py         # Pipeline SDK helpers
+        └── adapters.py         # Adapter registration SDK helpers
 
 tests/
-├── contract/
+├── unit/
+│   ├── blueprints/
+│   │   ├── test_models.py
+│   │   └── test_builder.py
+│   ├── adapters/
+│   │   ├── test_registry.py
+│   │   └── test_base.py
+│   ├── instructions/
+│   │   └── test_cache.py
+│   ├── pipeline/
+│   │   ├── test_context_materializer.py
+│   │   ├── test_executor.py
+│   │   └── test_previewer.py
+│   └── context/
+│       ├── test_logging.py
+│       └── test_errors.py
 ├── integration/
-└── unit/
+│   ├── test_blueprint_preview_sdk.py
+│   ├── test_adapter_swaps.py
+│   ├── test_pipeline_executor.py
+│   ├── test_instruction_fallbacks.py
+│   ├── test_performance.py
+│   └── test_quickstart_validation.py
+└── contract/
+    ├── test_blueprint_preview_sdk.py
+    ├── test_pipeline_execute.py
+    └── test_adapter_registry.py
+
+examples/
+├── us1-blueprints/
+│   ├── README.md
+│   ├── simple_blueprint.yaml
+│   ├── instructions/
+│   │   └── step_instruction.md
+│   └── run_preview.py
+├── us2-adapters/
+│   ├── README.md
+│   ├── blueprint.yaml
+│   ├── data/
+│   │   └── sample.csv
+│   └── swap_adapters.py
+├── us3-pipelines/
+│   ├── README.md
+│   ├── hierarchical_blueprint.yaml
+│   └── run_pipeline.py
+└── complete/
+    ├── README.md
+    ├── research_flow.yaml
+    ├── instructions/
+    ├── data/
+    └── end_to_end.py
 ```
 
-**Structure Decision**: Single Python package with clean architecture layering; fallback work touches `instructions/`, `pipeline/context_materializer.py`, `pipeline/executor.py`, and SDK façades while keeping adapters isolated.
+**Structure Decision**: Single Python library project structure with clear separation of domain (`blueprints/models.py`), use cases (`pipeline/`), and adapters (`adapters/`). SDK layer (`sdk/`) provides ergonomic entry points while keeping internal complexity hidden. Examples directory at repository root demonstrates all functionality organized by user story plus end-to-end scenarios.
 
 ## Complexity Tracking
 
@@ -89,30 +161,5 @@ tests/
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| _None_ | — | — |
-
-## Phase 0: Outline & Research
-
-- Capture the CHK016 gap as a research question: “What observable fallback modes keep instruction providers LSP-compliant?”  
-- Summarize findings (filesystem vs remote store parity, diagnostics expectations) inside `research.md` with Decision/Rationale/Alternatives.  
-- Identify dependencies (existing `InstructionNode`, `ContextMaterializer`, logging) and ensure no new runtime tech is required.  
-- Output: updated `research.md` (already revised with fallback semantics).
-
-## Phase 1: Design & Contracts
-
-1. **Data Model updates** (`data-model.md`):
-   - Add `InstructionFallbackPolicy` enum and describe validation (default `error`).
-   - Document how policies attach to instruction providers or blueprint references.
-2. **Contracts** (`contracts/context-engineering.yaml`):
-   - Extend preview/execution responses to include `fallback_mode`, `warnings`, and `placeholder` payloads.
-   - Clarify adapter registration metadata for supported fallback policies.
-3. **Quickstart & Docs** (`quickstart.md`, `docs_site/context-engineering/{adapter-guide,execution-recipes}.md`):
-   - Add scenarios showing provider swap (filesystem → HTTP) that triggers `warn` fallback, including log snippet.
-4. **Agent context**:
-   - Run `.specify/scripts/bash/update-agent-context.sh cursor-agent` so shared memory records the new fallback requirement.
-
-## Phase 2: Planning Outcomes
-
-- Re-evaluate Constitution Check after design artifacts are updated; ensure SRP/OCP proof now includes fallback policies.  
-- Produce handoff summary for `/speckit.tasks` describing implementation/test/doc updates needed (materializer, executor, SDK, docs).  
-- Artifacts ready: `plan.md` (this file), refreshed `research.md`, plus TODOs for data-model, contracts, quickstart/doc updates.
+| ContextMaterializer abstraction layer | Enforces clean architecture by preventing preview/executor code from directly accessing adapter registries | Direct adapter lookups in use cases would create tight coupling, harder testing, and violate DIP—materializer interface allows mocking and keeps adapters swappable without core edits |
+| Multi-format instruction support with JSON canonical | Supports designer ergonomics (Markdown/YAML) while maintaining internal consistency | Single format (e.g., JSON-only) would force designers to write JSON manually, reducing adoption; conversion layer keeps authoring flexible while preserving structured processing |

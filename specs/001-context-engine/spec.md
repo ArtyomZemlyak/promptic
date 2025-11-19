@@ -19,6 +19,14 @@
 - Q: Should `ContextMaterializer` be treated as a new use case or folded into existing preview/executor services? → A: Keep it as a dedicated registry-style module documented in the spec so layering remains explicit.
 - Q: Should T020/T021 rely on ContextMaterializer from day one or pull T034 earlier? → A: Keep T034 in US2, but inject the existing ContextMaterializer interface into T020/T021 immediately and add tests proving preview/executor flows never touch adapters directly.
 
+### Session 2025-01-27
+
+- Q: Where should examples folder be located and how should it be structured? → A: Repository root `examples/` with subdirectories by user story (us1-blueprints/, us2-adapters/, us3-pipelines/) plus `complete/` for end-to-end scenarios covering all functionality.
+- Q: Should the spec define explicit performance targets (latency, throughput, scale limits)? → A: No explicit performance targets; optimize based on profiling during development. Size budgets (per-step context limits) remain the primary constraint mechanism.
+- Q: What error response format should the SDK use (exceptions vs structured errors vs hybrid)? → A: Hybrid approach: raise domain-specific exceptions (e.g., `BlueprintValidationError`, `AdapterNotFoundError`) for fatal errors; return structured error dicts in response objects for warnings/non-fatal issues (e.g., fallback events, validation warnings).
+- Q: What instruction asset format support is required (plain-text only vs templates vs multiple formats)? → A: Support multiple formats natively (Markdown, JSON, YAML, plain-text) with format auto-detection. JSON is the canonical/main format internally; all other formats convert to JSON during ingestion/processing.
+- Q: What logging format and schema should be used for execution logs? → A: Structured JSONL format with defined schema: each entry includes `timestamp`, `level`, `event_type` (e.g., "instruction_accessed", "adapter_resolved", "fallback_applied"), `blueprint_id`, `step_id` (if applicable), `asset_id`, and `metadata` (dict) for structured querying and audit trails.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -95,12 +103,12 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 
 ### Edge Cases
 
-- Missing instruction asset: executor must fail fast with a descriptive error and suggest which file path is expected.
-- Instruction provider fallback: when a configured provider cannot return content, the materializer applies the blueprint’s fallback policy (`error`, `warn`, `noop`), injects placeholders if needed, and logs the degradation for audit.
-- Circular instruction references: blueprint validator rejects graphs with cycles and highlights offending nodes.
-- Extremely large data payloads: adapters stream or chunk data so context rendering can enforce size budgets per step.
-- Memory provider unavailable mid-run: executor retries once, then records the failure summary for the agent to decide fallback.
-- Readability safeguards: Preview helpers highlight steps exceeding recommended text length so designers can refactor.
+- Missing instruction asset: executor raises `BlueprintValidationError` (fatal) with descriptive message and suggested file path when required assets are missing; optional assets with fallback policy return structured warnings in response objects.
+- Instruction provider fallback: when a configured provider cannot return content, the materializer applies the blueprint's fallback policy (`error`, `warn`, `noop`). Policy `error` raises exception; `warn`/`noop` inject placeholders and return structured fallback events in response objects, logging degradation for audit.
+- Circular instruction references: blueprint validator raises `BlueprintValidationError` (fatal) rejecting graphs with cycles and highlights offending nodes.
+- Extremely large data payloads: adapters stream or chunk data so context rendering can enforce size budgets per step. Exceeding limits raises `ContextSizeExceededError` (fatal) or returns structured warnings depending on configuration.
+- Memory provider unavailable mid-run: executor retries once, then raises `AdapterUnavailableError` (fatal) or returns structured failure summary in response object depending on fallback policy.
+- Readability safeguards: Preview helpers return structured warnings (non-fatal) highlighting steps exceeding recommended text length so designers can refactor.
 
 ## Requirements *(mandatory)*
 
@@ -114,16 +122,16 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **FR-001**: The library MUST let users define a context blueprint composed of prompt text, instruction blocks, data slots, and memory slots in a single schema.
 - **FR-002**: The blueprint engine MUST support hierarchical step structures, including nested instructions and repeating steps for item collections.
 - **FR-003**: The system MUST expose pluggable interfaces for data sources and memory providers so integrators can register custom adapters without modifying core modules, and preview/execution use cases must interact with those adapters only through the `ContextMaterializer` abstraction starting in US1.
-- **FR-004**: The executor MUST resolve instruction references at runtime (e.g., loading `3_step_instruction`), provide transparent caching to avoid redundant file reads within a run, and enforce `InstructionFallbackPolicy` semantics (`error`, `warn`, `noop`) so alternate instruction providers can swap without modifying core modules.
+- **FR-004**: The executor MUST resolve instruction references at runtime (e.g., loading `3_step_instruction`), provide transparent caching to avoid redundant file reads within a run, and enforce `InstructionFallbackPolicy` semantics (`error`, `warn`, `noop`) so alternate instruction providers can swap without modifying core modules. Instruction assets in multiple formats (Markdown, JSON, YAML, plain-text) MUST be auto-detected and converted to JSON as the canonical format during ingestion.
 - **FR-005**: The library MUST render a preview of the fully assembled context for any blueprint + sample data combination, highlighting unresolved placeholders.
-- **FR-006**: Validation MUST detect circular references, missing assets, or slot mismatches before execution and return actionable error messages.
-- **FR-007**: The system MUST log every instruction/data/memory asset accessed per run so agents can audit which guidance influenced each output.
+- **FR-006**: Validation MUST detect circular references, missing assets, or slot mismatches before execution. Fatal errors (e.g., circular references, missing required assets) raise domain-specific exceptions (e.g., `BlueprintValidationError`); non-fatal warnings (e.g., optional asset fallbacks, size limit warnings) are returned as structured error dicts in response objects.
+- **FR-007**: The system MUST log every instruction/data/memory asset accessed per run using structured JSONL format with defined schema (fields: `timestamp`, `level`, `event_type`, `blueprint_id`, `step_id`, `asset_id`, `metadata`) so agents can audit which guidance influenced each output and enable structured querying.
 - **FR-008**: Configuration MUST allow per-step context size limits and warn when rendered text exceeds those limits.
 
 ### Key Entities *(include if feature involves data)*
 
 - **ContextBlueprint**: Domain object describing prompt, global instructions, steps, and references to data/memory slots with hierarchy metadata.
-- **InstructionNode**: Represents an instruction asset (file, string, template) plus metadata (version, locale, caching policy) and parent/child relations.
+- **InstructionNode**: Represents an instruction asset (file, string) in multiple formats (Markdown, JSON, YAML, plain-text) with format auto-detection, plus metadata (version, locale, caching policy) and parent/child relations. All formats convert to JSON internally as the canonical representation.
 - **DataSlot**: Named contract describing the shape and validation rules for inbound data a blueprint consumes.
 - **MemorySlot**: Descriptor for recalling prior conversation or long-term facts, referencing a provider capability (e.g., vector search, key-value recall).
 - **DataSourceAdapter / MemoryProvider**: Interfaces plus concrete adapters responsible for fetching data/memory values when requested.
@@ -135,15 +143,16 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **AQ-001**: Keep `ContextBlueprint`, `InstructionNode`, and slots in the domain layer; use cases (`BlueprintBuilder`, `PipelineExecutor`) depend only on interfaces (`InstructionStore`, `DataSourceAdapter`), while adapters handle filesystem/API concerns.
 - **AQ-002**: Apply SRP by separating blueprint authoring, validation, rendering, and execution into distinct classes; document any intentional coupling via `# AICODE-NOTE`.
 - **AQ-003**: Provide unit tests for schema validation, adapter contracts, and execution traversal; integration tests covering a multi-step pipeline; contract tests for adapter registration/resolution; all run via `pytest` in CI.
-- **AQ-004**: Update docs_site with blueprint schema reference, adapter integration guide, and execution walkthrough; ensure spec, plan, and inline docstrings stay synchronized; resolve any `# AICODE-ASK` prompts before merge.
+- **AQ-004**: Update docs_site with blueprint schema reference, adapter integration guide, and execution walkthrough; ensure spec, plan, and inline docstrings stay synchronized; resolve any `# AICODE-ASK` prompts before merge. Provide comprehensive examples in repository root `examples/` directory organized by user story (us1-blueprints/, us2-adapters/, us3-pipelines/) plus `complete/` for end-to-end scenarios, with each example including README, blueprint YAML, sample data files, and runnable Python scripts demonstrating the feature.
 - **AQ-005**: Enforce readability by limiting public functions to <100 logical lines, using descriptive names (e.g., `render_context_preview`), and deleting dead experimental code after each milestone.
 - **AICODE-NOTE**: We satisfy AQ-005 through coding guidelines and reviews rather than bespoke tooling. Black (line length 100) and isort remain the only automated formatters for this feature.
 
 ### Assumptions
 
-- Instruction assets are stored as Markdown/plain-text files by default; other formats can register as adapters later.
+- Instruction assets support multiple formats (Markdown, JSON, YAML, plain-text) with format auto-detection. JSON is the canonical format internally; all formats convert to JSON during ingestion/processing. Additional formats can register as adapters later.
 - Agents trigger pipeline execution via an external orchestrator; this feature focuses on producing contexts, not running the agent itself.
 - Data payload sizes are expected to fit within current LLM token constraints; enforcement happens via configurable limits rather than dynamic truncation.
+- Performance optimization will be driven by profiling during development rather than explicit latency/throughput targets; size budgets (per-step context limits) serve as the primary performance constraint mechanism.
 
 ## Success Criteria *(mandatory)*
 
@@ -160,5 +169,6 @@ Automation engineers orchestrate agent workflows where each pipeline step can tr
 - **SC-004**: Preview rendering flags >95% of validation issues (missing assets, cycles, oversize contexts) before runtime execution.
 - **SC-005**: All related pytest suites (unit, integration, contract) pass locally and in CI with evidence linked in the PR.
 - **SC-006**: Relevant docs_site pages, specs, and inline comments are updated and reviewed alongside the code change.
+- **SC-009**: Examples directory at repository root (`examples/`) contains working demonstrations organized by user story (us1-blueprints/, us2-adapters/, us3-pipelines/) and end-to-end scenarios (`complete/`), with each example including README documentation, blueprint YAML files, sample data, and runnable Python scripts that cover all library functionality.
 - **SC-007**: Performance instrumentation (`MaterializerStats`, instruction warm-up) and SDK error mapping (`describe_error`, `preview_blueprint_safe`) surface actionable diagnostics for the quickstart scenario, evidenced by `tests/integration/test_performance.py` and `tests/integration/test_quickstart_validation.py`.
 - **SC-008**: Swapping instruction providers (filesystem ↔ remote) triggers at least one `warn` fallback path captured in preview/execution logs, with contract + integration tests proving the swap requires no core module modifications.

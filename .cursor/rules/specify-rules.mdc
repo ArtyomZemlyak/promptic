@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2025-11-17
 
 ## Active Technologies
+- Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `rich` (preview rendering), `jinja2` (templating), `orjson` (JSON serialization), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing), optional adapter extras (`httpx`, `sqlalchemy`, `faiss-cpu`) (001-context-engine)
+- Filesystem-backed instruction stores (Markdown/JSON/YAML/plain-text) with optional caching (LRU); data/memory adapters abstract storage (CSV, HTTP, vector DBs, etc.) (001-context-engine)
 
 - Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`) (001-context-engine)
 
@@ -22,6 +24,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11 (CPython): Follow standard conventions
 
 ## Recent Changes
+- 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `rich` (preview rendering), `jinja2` (templating), `orjson` (JSON serialization), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing), optional adapter extras (`httpx`, `sqlalchemy`, `faiss-cpu`)
 - 001-context-engine: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 - 001-context-engine: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`)
