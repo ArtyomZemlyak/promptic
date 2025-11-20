@@ -224,6 +224,12 @@ def load_blueprint(
 
     blueprint = result.unwrap()
 
+    # Store blueprint source path in metadata for later use
+    if blueprint_path:
+        if blueprint.metadata is None:
+            blueprint.metadata = {}
+        blueprint.metadata["_source_path"] = str(blueprint_path.resolve())
+
     # Apply settings from blueprint if they exist
     if blueprint.settings.instruction_root:
         # Resolve relative to blueprint directory
@@ -260,10 +266,18 @@ def _create_settings_from_blueprint(
     # Apply instruction_root from blueprint if specified
     if blueprint.settings.instruction_root:
         instruction_path = Path(blueprint.settings.instruction_root)
-        # If relative path, resolve relative to current working directory
+        # If relative path, resolve relative to blueprint file location (if known)
         if not instruction_path.is_absolute():
-            instruction_path = Path.cwd() / instruction_path
-        runtime_settings.instruction_root = instruction_path.resolve()
+            blueprint_path = None
+            if blueprint.metadata and "_source_path" in blueprint.metadata:
+                blueprint_path = Path(blueprint.metadata["_source_path"])
+            if blueprint_path and blueprint_path.exists():
+                blueprint_dir = blueprint_path.parent.resolve()
+                instruction_path = (blueprint_dir / instruction_path).resolve()
+            else:
+                # Fallback to current working directory if blueprint path unknown
+                instruction_path = (Path.cwd() / instruction_path).resolve()
+        runtime_settings.instruction_root = instruction_path
 
     # Apply adapter defaults from blueprint
     if blueprint.settings.adapter_defaults:
@@ -274,7 +288,15 @@ def _create_settings_from_blueprint(
             if "path" in config_copy and isinstance(config_copy["path"], str):
                 path_obj = Path(config_copy["path"])
                 if not path_obj.is_absolute():
-                    path_obj = (Path.cwd() / path_obj).resolve()
+                    blueprint_path = None
+                    if blueprint.metadata and "_source_path" in blueprint.metadata:
+                        blueprint_path = Path(blueprint.metadata["_source_path"])
+                    if blueprint_path and blueprint_path.exists():
+                        blueprint_dir = blueprint_path.parent.resolve()
+                        path_obj = (blueprint_dir / path_obj).resolve()
+                    else:
+                        # Fallback to current working directory if blueprint path unknown
+                        path_obj = (Path.cwd() / path_obj).resolve()
                 config_copy["path"] = str(path_obj)
             runtime_settings.adapter_registry.data_defaults[adapter_key] = config_copy
 

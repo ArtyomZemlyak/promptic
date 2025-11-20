@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Example: Blueprint authoring and preview (User Story 1).
 
 Minimal API usage - just blueprint.yaml file and 3 lines of code:
@@ -36,4 +37,4 @@ render_preview(blueprint, materializer=materializer)
 
 # Render for LLM (plain text ready for LLM input)
 llm_text = render_for_llm(blueprint, materializer=materializer)
-print(f"\n✅ LLM-ready text ({len(llm_text)} chars): {llm_text[:200]}...")
+print(f"\n✅ LLM-ready text ({len(llm_text)} chars): {llm_text}...")
