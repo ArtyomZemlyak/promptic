@@ -24,6 +24,9 @@ def preview_blueprint(
     settings: ContextEngineSettings | None = None,
     materializer: ContextMaterializer | None = None,
     print_to_console: bool = True,
+    render_mode: str = "inline",
+    base_url: str | None = None,
+    depth_limit: int | None = None,
 ) -> PreviewResponse:
     runtime_settings = settings or ContextEngineSettings()
     runtime_settings.ensure_directories()
@@ -35,14 +38,24 @@ def preview_blueprint(
         sample_data=sample_data,
         sample_memory=sample_memory,
         print_to_console=print_to_console,
+        render_mode=render_mode,
+        base_url=base_url,
+        depth_limit=depth_limit,
     )
     if not result.ok:
         error = result.error or PrompticError("Blueprint preview failed.")
         raise error
     artifact = result.unwrap()
     warnings = result.warnings
+    metadata = (
+        artifact.file_first_metadata.model_dump(mode="json")
+        if artifact.file_first_metadata
+        else None
+    )
     return PreviewResponse(
         rendered_context=artifact.rendered_context,
+        markdown=artifact.file_first_markdown,
+        metadata=metadata,
         warnings=warnings,
         instruction_ids=artifact.instruction_ids,
         fallback_events=artifact.fallback_events,

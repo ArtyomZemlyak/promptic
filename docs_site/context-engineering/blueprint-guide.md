@@ -130,6 +130,50 @@ applies sample data/memory overrides, and then hands the assembled payload to
 produce a console-friendly snapshot with highlighted placeholders, JSON panels
 for resolved data/memory, and a table summarizing each step’s instruction blocks.
 
+## File-First Render Mode Metadata
+
+Blueprint metadata now accepts a `file_first` section that feeds the new render
+strategy registered inside `TemplateRenderer`. Supported keys:
+
+- `persona`: Short description shown at the top of the generated root prompt.
+- `objectives`: Ordered list of goals rendered directly under the persona.
+- `summary_overrides`: Mapping of `instruction_id` or relative path →
+  short summary text (≤120 tokens) used instead of the auto-truncated excerpt.
+- `memory_channels`: Optional list describing memory/log locations. Each entry
+  supports `location`, `expected_format`, `format_descriptor_path`,
+  `retention_policy`, and `usage_examples` so agents know how to persist notes.
+
+When you pass `render_mode="file_first"` (via the SDK or CLI) the
+`FileFirstRenderer` constructs a `PromptHierarchyBlueprint` that captures
+persona/goals, a reference tree (with stable IDs derived from file paths), memory
+channels, and `RenderMetrics` (token counts before/after). The render API also
+accepts `base_url` which rewrites every `reference_path` and detail hint into an
+absolute URL for hosted documentation portals.
+
+```python
+from promptic.sdk import blueprints
+
+response = blueprints.preview_blueprint(
+    blueprint_id="research-flow",
+    render_mode="file_first",
+    base_url="https://kb.example.com/docs",
+)
+
+print(response.markdown)        # Persona + goals + steps + memory block
+print(response.metadata["steps"][0])  # Stable ID + reference_path + hint
+print(response.metadata["metrics"])   # Token reduction evidence
+```
+
+## Memory Descriptors & Defaults
+
+`MemoryDescriptorCollector` lives alongside the filesystem instruction store and
+scans both metadata (per-channel overrides) and the default
+`memory/format.md` descriptor under the instruction root. If blueprint metadata
+does not specify custom channels, the collector emits a default “Memory &
+Logging” block referencing the bundled hierarchical markdown template. This
+ensures every file-first render instructs agents where to persist observations,
+even when teams have not authored bespoke descriptors yet.
+
 ## Relationship to the Context Materializer
 
 `ContextMaterializer` remains the sole gateway to adapters and instruction stores.
@@ -147,7 +191,7 @@ without digging through stack traces:
 - `promptic.context.errors.describe_error()` converts any `PrompticError` into an
   `ErrorDetail` containing a machine-readable code, human hint, and context payload
   (e.g., missing instruction IDs or adapter keys).
-- `promptic.sdk.api.preview_blueprint_safe()` and `run_pipeline_safe()` wrap the
+- `promptic.sdk.api.preview_blueprint_safe()` wraps the
   standard SDK functions, returning an `SdkResult` that embeds `ErrorDetail`,
   run duration, and any warnings instead of raising immediately.
 

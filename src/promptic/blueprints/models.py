@@ -294,6 +294,55 @@ class ContextBlueprint(BaseModel):
             seen.add(value)
 
 
+class RenderMetrics(BaseModel):
+    """Token/validation statistics recorded by file-first renders."""
+
+    tokens_before: int = Field(default=0, ge=0)
+    tokens_after: int = Field(default=0, ge=0)
+    reference_count: int = Field(default=0, ge=0)
+    missing_paths: List[str] = Field(default_factory=list)
+
+
+class MemoryChannel(BaseModel):
+    """Memory/log destinations surfaced in file-first prompts."""
+
+    location: str = Field(..., min_length=1)
+    expected_format: str = Field(..., min_length=1)
+    format_descriptor_path: Optional[str] = Field(default=None, min_length=1)
+    retention_policy: Optional[str] = Field(default=None, max_length=512)
+    usage_examples: List[str] = Field(default_factory=list, max_length=10)
+
+
+class InstructionReference(BaseModel):
+    """Represents a single referenced instruction file."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1, max_length=80)
+    summary: str = Field(..., min_length=1)
+    reference_path: str = Field(..., min_length=1)
+    detail_hint: str = Field(..., min_length=1)
+    token_estimate: int = Field(default=0, ge=0)
+    children: List["InstructionReference"] = Field(default_factory=list)
+
+
+class PromptHierarchyBlueprint(BaseModel):
+    """Top-level persona/goals plus reference tree for file-first renders."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    blueprint_id: str = Field(..., min_length=1)
+    persona: str = Field(..., min_length=1)
+    objectives: List[str] = Field(default_factory=list, max_length=8)
+    steps: List[InstructionReference] = Field(default_factory=list)
+    memory_channels: List[MemoryChannel] = Field(default_factory=list)
+    metrics: Optional[RenderMetrics] = None
+
+
+InstructionReference.model_rebuild()
+
+
 __all__ = [
     "AdapterRegistration",
     "BlueprintSettings",
@@ -307,5 +356,9 @@ __all__ = [
     "InstructionFallbackPolicy",
     "InstructionNode",
     "InstructionNodeRef",
+    "InstructionReference",
+    "MemoryChannel",
     "MemorySlot",
+    "PromptHierarchyBlueprint",
+    "RenderMetrics",
 ]

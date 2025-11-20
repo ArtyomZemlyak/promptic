@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from pathlib import Path
 from typing import Sequence
 
 from promptic.blueprints.models import InstructionNode
@@ -45,6 +46,15 @@ class InstructionCache(InstructionStore):
         content = self._store.load_content(instruction_id)
         self._remember_content(instruction_id, content)
         return content
+
+    def resolve_path(self, instruction_id: str) -> Path:
+        return self._store.resolve_path(instruction_id)
+
+    def read_raw(self, relative_path: str) -> str:
+        return self._store.read_raw(relative_path)
+
+    def path_exists(self, relative_path: str) -> bool:
+        return self._store.path_exists(relative_path)
 
     def invalidate(self, instruction_id: str | None = None) -> None:
         """Purge one or all cached entries."""

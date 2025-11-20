@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Promptic File-First Renderer API
+  version: "1.0.0"
+  description: >
+    Contract for rendering blueprints in file-first mode via SDK/CLI adapters.
+servers:
+  - url: https://promptic.local/api
+paths:
+  /blueprints/{blueprint_id}/render:
+    post:
+      summary: Render a blueprint using the file-first strategy
+      parameters:
+        - name: blueprint_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Identifier resolved by the Blueprint Registry.
+        - name: base_url
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+          description: Optional prefix used to convert relative reference paths into absolute links.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - render_mode
+              properties:
+                render_mode:
+                  type: string
+                  enum: ["file_first"]
+                summary_override:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Optional per-step summaries supplied by blueprint authors.
+                depth_limit:
+                  type: integer
+                  minimum: 1
+                  default: 3
+                validate_only:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Render succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileFirstRenderResponse"
+        "400":
+          description: Missing files or invalid blueprint data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Blueprint not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    FileFirstRenderResponse:
+      type: object
+      required:
+        - markdown
+        - metadata
+      properties:
+        markdown:
+          type: string
+          description: Compact persona + goals + step list with references.
+        metadata:
+          type: object
+          required:
+            - steps
+            - memory_channels
+            - metrics
+          properties:
+            steps:
+              type: array
+              items:
+                $ref: "#/components/schemas/InstructionReference"
+            memory_channels:
+              type: array
+              items:
+                $ref: "#/components/schemas/MemoryChannel"
+            metrics:
+              $ref: "#/components/schemas/RenderMetrics"
+    InstructionReference:
+      type: object
+      required:
+        - id
+        - title
+        - summary
+        - reference_path
+        - detail_hint
+        - token_estimate
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        reference_path:
+          type: string
+        detail_hint:
+          type: string
+        token_estimate:
+          type: integer
+          minimum: 0
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstructionReference"
+    MemoryChannel:
+      type: object
+      required:
+        - location
+        - expected_format
+      properties:
+        location:
+          type: string
+        expected_format:
+          type: string
+        format_descriptor_path:
+          type: string
+          nullable: true
+        retention_policy:
+          type: string
+        usage_examples:
+          type: array
+          items:
+            type: string
+    RenderMetrics:
+      type: object
+      required:
+        - tokens_before
+        - tokens_after
+        - reference_count
+      properties:
+        tokens_before:
+          type: integer
+          minimum: 0
+        tokens_after:
+          type: integer
+          minimum: 0
+        reference_count:
+          type: integer
+          minimum: 0
+        missing_paths:
+          type: array
+          items:
+            type: string
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - details
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: string

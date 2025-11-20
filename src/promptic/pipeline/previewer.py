@@ -9,8 +9,9 @@ from promptic.blueprints.models import (
     ContextBlueprint,
     FallbackEvent,
     InstructionNodeRef,
+    PromptHierarchyBlueprint,
 )
-from promptic.context.errors import OperationResult, PrompticError
+from promptic.context.errors import OperationResult, PrompticError, TemplateRenderError
 from promptic.context.rendering import render_context_preview
 from promptic.context.template_context import InstructionRenderContext, build_instruction_context
 from promptic.pipeline.builder import BlueprintBuilder
@@ -26,6 +27,8 @@ class PreviewArtifact:
     rendered_context: str
     instruction_ids: list[str] = field(default_factory=list)
     fallback_events: list[FallbackEvent] = field(default_factory=list)
+    file_first_markdown: str | None = None
+    file_first_metadata: PromptHierarchyBlueprint | None = None
 
 
 class ContextPreviewer:
@@ -49,6 +52,9 @@ class ContextPreviewer:
         sample_data: Mapping[str, Any] | None = None,
         sample_memory: Mapping[str, Any] | None = None,
         print_to_console: bool = True,
+        render_mode: str = "inline",
+        base_url: str | None = None,
+        depth_limit: int | None = None,
     ) -> OperationResult[PreviewArtifact]:
         sample_data = sample_data or {}
         sample_memory = sample_memory or {}
@@ -70,6 +76,15 @@ class ContextPreviewer:
                 warm_result.error, "Instruction warm-up failed before preview."
             )
             return OperationResult.failure(error, warnings=aggregate_warnings)
+
+        if render_mode == "file_first":
+            return self._render_file_first(
+                blueprint=blueprint,
+                base_url=base_url,
+                depth_limit=depth_limit or 3,
+                aggregate_warnings=aggregate_warnings,
+                fallback_events=fallback_events,
+            )
 
         data_result = self._materializer.resolve_data_slots(
             blueprint,
@@ -208,6 +223,38 @@ class ContextPreviewer:
                     self._ensure_error(encountered_error, "Instruction resolution failed."),
                 )
         return mapping, warnings, encountered_error
+
+    def _render_file_first(
+        self,
+        *,
+        blueprint: ContextBlueprint,
+        base_url: str | None,
+        depth_limit: int,
+        aggregate_warnings: list[str],
+        fallback_events: list[FallbackEvent],
+    ) -> OperationResult[PreviewArtifact]:
+        try:
+            result = self._template_renderer.render_file_first(
+                blueprint=blueprint,
+                materializer=self._materializer,
+                base_url=base_url,
+                depth_limit=depth_limit,
+                summary_overrides={},
+            )
+        except TemplateRenderError as error:
+            return OperationResult.failure(error, warnings=aggregate_warnings)
+
+        fallback_events.extend(self._materializer.consume_fallback_events())
+        artifact = PreviewArtifact(
+            blueprint=blueprint,
+            rendered_context="",
+            instruction_ids=[],
+            fallback_events=fallback_events,
+            file_first_markdown=result.markdown,
+            file_first_metadata=result.metadata,
+        )
+        combined_warnings = aggregate_warnings + result.warnings
+        return OperationResult.success(artifact, warnings=combined_warnings)
 
     def _resolve_instruction_text(
         self,

@@ -110,16 +110,16 @@ def test_materializer_caching_keeps_preview_and_pipeline_fast(tmp_path: Path) ->
     assert preview.rendered_context
     assert preview_duration < 0.5
 
-    run_start = time.perf_counter()
-    execution = api.run_pipeline(
+    second_preview_start = time.perf_counter()
+    second_preview = api.preview_blueprint(
         blueprint_id=blueprint_id,
         settings=settings,
         materializer=materializer,
     )
-    run_duration = time.perf_counter() - run_start
+    second_duration = time.perf_counter() - second_preview_start
 
-    assert execution.run_id
-    assert run_duration < 0.5
+    assert second_preview.rendered_context
+    assert second_duration < 0.3
 
     stats = materializer.snapshot_stats()
     assert SlowDataAdapter.calls == 1

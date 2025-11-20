@@ -5,8 +5,8 @@ from typing import Any, Mapping, Sequence
 
 from promptic.blueprints import ContextBlueprint, FallbackEvent, InstructionNode, InstructionNodeRef
 from promptic.context import OperationResult
-from promptic.sdk import pipeline as sdk_pipeline
-from promptic.sdk.api import ExecutionResponse
+from promptic.sdk import blueprints as sdk_blueprints
+from promptic.sdk.api import PreviewResponse
 from promptic.settings.base import ContextEngineSettings
 
 
@@ -140,27 +140,27 @@ memory_slots:
     )
 
 
-def test_pipeline_run_uses_materializer_interfaces(tmp_path: Path) -> None:
+def test_preview_uses_materializer_interfaces(tmp_path: Path) -> None:
     settings = _write_blueprint_assets(tmp_path)
     materializer = StubMaterializer()
 
-    response = sdk_pipeline.run_pipeline(
+    response = sdk_blueprints.preview_blueprint(
         blueprint_id="demo",
         settings=settings,
         materializer=materializer,  # type: ignore[arg-type]
-        data_inputs={"records": [{"title": "Contract Test"}]},
-        memory_inputs={"history": ["contract"]},
+        sample_data={"records": [{"title": "Contract Test"}]},
+        sample_memory={"history": ["contract"]},
     )
 
-    assert isinstance(response, ExecutionResponse)
-    assert response.events, "Expected execution events to be recorded."
+    assert isinstance(response, PreviewResponse)
+    assert "Contract Test" in response.rendered_context
     instruction_calls = [call for call in materializer.calls if call[0] == "instructions"]
     assert instruction_calls
     assert ("data", "records") in materializer.calls
     assert ("memory", "history") in materializer.calls
 
 
-def test_pipeline_response_includes_fallback_events(tmp_path: Path) -> None:
+def test_preview_response_includes_fallback_events(tmp_path: Path) -> None:
     settings = _write_blueprint_assets(tmp_path)
     fallback_event = FallbackEvent(
         instruction_id="summary",
@@ -171,7 +171,7 @@ def test_pipeline_response_includes_fallback_events(tmp_path: Path) -> None:
     )
     materializer = StubMaterializer(fallback_events=[fallback_event])
 
-    response = sdk_pipeline.run_pipeline(
+    response = sdk_blueprints.preview_blueprint(
         blueprint_id="demo",
         settings=settings,
         materializer=materializer,  # type: ignore[arg-type]

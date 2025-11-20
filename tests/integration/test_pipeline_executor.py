@@ -7,7 +7,7 @@ from promptic.adapters import AdapterRegistry, BaseDataAdapter
 from promptic.adapters.registry import AdapterFactory
 from promptic.blueprints import DataSlot
 from promptic.sdk import adapters as sdk_adapters
-from promptic.sdk import pipeline as sdk_pipeline
+from promptic.sdk import blueprints as sdk_blueprints
 from promptic.sdk.api import build_materializer
 from promptic.settings.base import ContextEngineSettings
 
@@ -82,14 +82,11 @@ def test_pipeline_executor_walks_loop_steps(tmp_path: Path) -> None:
     sdk_adapters.register_static_memory_provider(key="integration_memory", registry=registry)
 
     materializer = build_materializer(settings=settings, registry=registry)
-    response = sdk_pipeline.run_pipeline(
+    response = sdk_blueprints.preview_blueprint(
         blueprint_id="pipeline",
         settings=settings,
         materializer=materializer,
     )
 
-    assert len(response.events) >= 4
-    instruction_events = [e for e in response.events if e.event_type == "instruction_loaded"]
-    assert instruction_events, "Executor should emit instruction events."
-    sizes = [e for e in response.events if e.event_type == "size_warning"]
-    assert sizes == [], "No size warnings expected for short instructions."
+    assert "Collect Items" in response.rendered_context
+    assert response.instruction_ids

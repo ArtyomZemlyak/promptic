@@ -95,14 +95,3 @@ def test_quickstart_instructions_execute_end_to_end(tmp_path: Path) -> None:
 
     assert "Doc A" in preview.rendered_context
     assert preview.instruction_ids
-
-    run = api.run_pipeline(
-        blueprint_id=blueprint_id,
-        settings=settings,
-        materializer=runtime.materializer,
-    )
-
-    assert run.events
-    event_types = {event.event_type for event in run.events}
-    assert "instruction_loaded" in event_types
-    assert "data_resolved" in event_types

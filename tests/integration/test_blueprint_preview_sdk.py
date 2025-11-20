@@ -33,6 +33,12 @@ def _write_blueprint_assets(tmp_path: Path) -> ContextEngineSettings:
 name: Demo Flow
 prompt_template: |
   Hello {{ data.sources[0].title }}
+metadata:
+  file_first:
+    persona: Research curator
+    objectives:
+      - Collect sources
+      - Summaries
 global_instructions:
   - instruction_id: intro
 steps:
@@ -77,3 +83,31 @@ def test_preview_blueprint_renders_context(tmp_path: Path) -> None:
     assert "Demo Flow" in response.rendered_context
     assert "Doc for sources" in response.rendered_context
     assert "memory::prior" in response.rendered_context
+
+
+def test_preview_blueprint_file_first_mode(tmp_path: Path) -> None:
+    settings = _write_blueprint_assets(tmp_path)
+    # Inflate instruction content to demonstrate token reduction
+    instructions_dir = settings.instruction_root
+    (instructions_dir / "collect.md").write_text(" ".join(["token"] * 200), encoding="utf-8")
+    (instructions_dir / "intro.md").write_text("Intro", encoding="utf-8")
+    registry = AdapterRegistry()
+    registry.register_data("stub", StaticDataAdapter)
+    registry.register_memory("stub", StaticMemoryProvider)
+
+    materializer = build_materializer(settings=settings, registry=registry)
+    response = sdk_blueprints.preview_blueprint(
+        blueprint_id="demo",
+        settings=settings,
+        materializer=materializer,
+        render_mode="file_first",
+        base_url="https://example.com/kb",
+    )
+
+    assert response.markdown
+    assert response.metadata
+    steps = response.metadata["steps"]
+    metrics = response.metadata["metrics"]
+    assert steps[0]["reference_path"].startswith("https://example.com/kb")
+    assert metrics["tokens_before"] > metrics["tokens_after"]
+    assert metrics["reference_count"] == len(steps)

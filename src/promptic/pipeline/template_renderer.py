@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from promptic.blueprints.models import InstructionFallbackPolicy, InstructionNode
 from promptic.context.errors import TemplateRenderError
 from promptic.context.template_context import InstructionRenderContext
 from promptic.pipeline.format_renderers.base import FormatRenderer
+
+if TYPE_CHECKING:
+    from promptic.blueprints.models import ContextBlueprint
+    from promptic.pipeline.context_materializer import ContextMaterializer
+    from promptic.pipeline.format_renderers.file_first import (
+        FileFirstRenderer,
+        FileFirstRenderResult,
+    )
 
 # We import implementations lazily or check availability to avoid circularity if necessary.
 # But here we want to register them.
@@ -22,6 +30,7 @@ class TemplateRenderer:
 
     def __init__(self) -> None:
         self._renderers: Dict[str, FormatRenderer] = {}
+        self._strategies: Dict[str, "FileFirstRenderer"] = {}
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -52,9 +61,46 @@ class TemplateRenderer:
         except ImportError:
             pass
 
+        self._register_file_first_strategy()
+
     def register_renderer(self, format: str, renderer: FormatRenderer) -> None:
         """Registers a renderer for a specific format."""
         self._renderers[format] = renderer
+
+    def render_file_first(
+        self,
+        *,
+        blueprint: "ContextBlueprint",
+        materializer: "ContextMaterializer",
+        base_url: str | None = None,
+        depth_limit: int = 3,
+        summary_overrides: Optional[Dict[str, str]] = None,
+    ) -> "FileFirstRenderResult":
+        """Render persona/goals markdown plus metadata via the file-first strategy."""
+
+        strategy = self._strategies.get("file_first")
+        if not strategy:
+            raise TemplateRenderError(
+                instruction_id="__file_first__",
+                format="file_first",
+                error_type="render_error",
+                message="File-first renderer is not available in this runtime.",
+            )
+        return strategy.render(
+            blueprint=blueprint,
+            materializer=materializer,
+            base_url=base_url,
+            depth_limit=depth_limit,
+            summary_overrides=summary_overrides or {},
+        )
+
+    def _register_file_first_strategy(self) -> None:
+        try:
+            from promptic.pipeline.format_renderers.file_first import FileFirstRenderer
+        except ImportError:
+            return
+
+        self._strategies["file_first"] = FileFirstRenderer()
 
     def render(
         self,

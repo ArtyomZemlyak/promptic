@@ -125,8 +125,8 @@ During preview/execution the `ContextMaterializer` invokes the provider. If the 
 
 SDK responses now surface these degradations explicitly:
 
-- `PreviewResponse.fallback_events` and `ExecutionResponse.fallback_events` contain `instruction_id`, `mode`, `message`, and the rendered placeholder so clients can render UI notices or audits.
-- `ExecutionResponse.events` includes `instruction_fallback` log entries, making it trivial to ship JSONL traces to observability stacks without guessing which step degraded.
+- `PreviewResponse.fallback_events` contains `instruction_id`, `mode`, `message`, and the rendered placeholder so clients can render UI notices or audits.
+- When building custom executors, mirror the preview logging format so `instruction_fallback` entries remain machine-readable across JSONL streams and analytics pipelines.
 
 ## Consumption via the Context Materializer
 

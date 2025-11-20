@@ -12,7 +12,11 @@ from .models import (
     InstructionFallbackPolicy,
     InstructionNode,
     InstructionNodeRef,
+    InstructionReference,
+    MemoryChannel,
     MemorySlot,
+    PromptHierarchyBlueprint,
+    RenderMetrics,
 )
 from .serialization import blueprint_json_schema, dump_blueprint, load_blueprint
 
@@ -28,7 +32,11 @@ __all__ = [
     "InstructionFallbackPolicy",
     "InstructionNode",
     "InstructionNodeRef",
+    "InstructionReference",
+    "MemoryChannel",
     "MemorySlot",
+    "PromptHierarchyBlueprint",
+    "RenderMetrics",
     "blueprint_json_schema",
     "dump_blueprint",
     "load_blueprint",

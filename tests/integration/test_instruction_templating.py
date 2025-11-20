@@ -1,10 +1,19 @@
 import textwrap
+from pathlib import Path
 
 import pytest
 
-from promptic.blueprints.models import InstructionFallbackPolicy, InstructionNode
+from promptic.blueprints.models import (
+    BlueprintStep,
+    ContextBlueprint,
+    InstructionFallbackPolicy,
+    InstructionNode,
+    InstructionNodeRef,
+)
 from promptic.context.template_context import InstructionRenderContext, StepContext
 from promptic.pipeline.template_renderer import TemplateRenderer
+from promptic.sdk.api import build_materializer
+from promptic.settings.base import ContextEngineSettings
 
 
 def _make_instruction_node(format: str, **overrides):
@@ -93,3 +102,114 @@ def test_markdown_hierarchy_conditionals():
 
     assert "Include this section" in rendered_with_details
     assert "Include this section" not in rendered_without_details
+
+
+def _setup_file_first_materializer(tmp_path: Path):
+    instruction_root = tmp_path / "instructions"
+    instruction_root.mkdir()
+    settings = ContextEngineSettings(
+        blueprint_root=tmp_path / "blueprints",
+        instruction_root=instruction_root,
+        log_root=tmp_path / "logs",
+    )
+    settings.ensure_directories()
+    return settings, build_materializer(settings=settings)
+
+
+def _write_instruction(root: Path, name: str, content: str) -> None:
+    (root / f"{name}.md").write_text(content, encoding="utf-8")
+
+
+def test_file_first_absolute_links_and_depth_limit(tmp_path: Path) -> None:
+    settings, materializer = _setup_file_first_materializer(tmp_path)
+    instruction_root = settings.instruction_root
+    _write_instruction(instruction_root, "root", "root")
+    _write_instruction(instruction_root, "child", "child")
+    _write_instruction(instruction_root, "grand", "grand")
+    blueprint = ContextBlueprint(
+        name="Depth Flow",
+        prompt_template="N/A",
+        steps=[
+            BlueprintStep(
+                step_id="root",
+                title="Root",
+                kind="sequence",
+                instruction_refs=[InstructionNodeRef(instruction_id="root")],
+                children=[
+                    BlueprintStep(
+                        step_id="child",
+                        title="Child",
+                        kind="sequence",
+                        instruction_refs=[InstructionNodeRef(instruction_id="child")],
+                        children=[
+                            BlueprintStep(
+                                step_id="grand",
+                                title="Grand",
+                                kind="sequence",
+                                instruction_refs=[InstructionNodeRef(instruction_id="grand")],
+                            )
+                        ],
+                    )
+                ],
+            )
+        ],
+        metadata={"file_first": {"persona": "Agent", "objectives": ["Goal"]}},
+    )
+
+    renderer = TemplateRenderer()
+    result = renderer.render_file_first(
+        blueprint=blueprint,
+        materializer=materializer,
+        base_url="https://example.com/base",
+        depth_limit=1,
+        summary_overrides={},
+    )
+
+    assert result.metadata.steps[0].detail_hint.startswith("See more: https://example.com/base")
+    assert result.warnings and "Depth limit" in result.warnings[0]
+
+
+def test_file_first_memory_block(tmp_path: Path) -> None:
+    settings, materializer = _setup_file_first_materializer(tmp_path)
+    instruction_root = settings.instruction_root
+    _write_instruction(instruction_root, "step", "step")
+    (instruction_root / "memory").mkdir(exist_ok=True)
+    (instruction_root / "memory" / "format.md").write_text("Memory guidance", encoding="utf-8")
+    blueprint = ContextBlueprint(
+        name="Memory Flow",
+        prompt_template="N/A",
+        steps=[
+            BlueprintStep(
+                step_id="step",
+                title="Step",
+                kind="sequence",
+                instruction_refs=[InstructionNodeRef(instruction_id="step")],
+            )
+        ],
+        metadata={
+            "file_first": {
+                "persona": "Recorder",
+                "objectives": ["Track notes"],
+                "memory_channels": [
+                    {
+                        "location": "memory/log.md",
+                        "expected_format": "Markdown log",
+                        "format_descriptor_path": "memory/format.md",
+                    }
+                ],
+            }
+        },
+    )
+
+    renderer = TemplateRenderer()
+    result = renderer.render_file_first(
+        blueprint=blueprint,
+        materializer=materializer,
+        base_url=None,
+        depth_limit=3,
+        summary_overrides={},
+    )
+
+    assert result.metadata.memory_channels
+    assert result.metadata.memory_channels[0].location == "memory/log.md"
+    assert "Memory & Logging" in result.markdown

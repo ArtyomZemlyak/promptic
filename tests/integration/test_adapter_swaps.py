@@ -9,7 +9,6 @@ from typing import Any
 from promptic.adapters import AdapterRegistry
 from promptic.sdk import adapters as sdk_adapters
 from promptic.sdk import blueprints as sdk_blueprints
-from promptic.sdk import pipeline as sdk_pipeline
 from promptic.sdk.api import build_materializer
 from promptic.settings.base import AdapterRegistrySettings, ContextEngineSettings
 
@@ -206,14 +205,3 @@ def test_instruction_fallback_warn_and_noop(tmp_path: Path) -> None:
     assert preview.fallback_events, "Preview should expose fallback diagnostics."
     assert {event.mode.value for event in preview.fallback_events} == {"warn", "noop"}
     assert any(event.placeholder_used == "[warn placeholder]" for event in preview.fallback_events)
-
-    run = sdk_pipeline.run_pipeline(
-        blueprint_id="fallback",
-        settings=settings,
-        materializer=materializer,
-    )
-
-    assert run.fallback_events, "Pipeline response should expose fallback events."
-    assert {event.mode.value for event in run.fallback_events} == {"warn", "noop"}
-    fallback_logs = [event for event in run.events if event.event_type == "instruction_fallback"]
-    assert fallback_logs, "Execution events should log instruction_fallback entries."

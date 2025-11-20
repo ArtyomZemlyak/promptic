@@ -173,7 +173,10 @@ class PipelineExecutor:
             self._logger.emit(
                 step_id=step.step_id,
                 event_type="instruction_loaded",
-                payload={"instruction_id": node.instruction_id},
+                payload={
+                    "instruction_id": node.instruction_id,
+                    "reference_path": str(node.source_uri),
+                },
                 reference_ids=[node.instruction_id],
             )
 

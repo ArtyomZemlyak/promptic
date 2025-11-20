@@ -6,12 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Iterator, Mapping, Optional, TypeVar
 
 from promptic.adapters.registry import AdapterRegistry
-from promptic.blueprints.models import (
-    BlueprintStep,
-    ContextBlueprint,
-    ExecutionLogEntry,
-    FallbackEvent,
-)
+from promptic.blueprints.models import BlueprintStep, ContextBlueprint, FallbackEvent
 from promptic.context.errors import ErrorDetail, PrompticError, describe_error
 from promptic.context.template_context import build_instruction_context
 from promptic.instructions.cache import InstructionCache
@@ -28,9 +23,8 @@ class PreviewResponse:
     warnings: list[str] = field(default_factory=list)
     instruction_ids: list[str] = field(default_factory=list)
     fallback_events: list[FallbackEvent] = field(default_factory=list)
-
-
-# ExecutionResponse removed - pipeline execution handled by external agent frameworks
+    markdown: str | None = None
+    metadata: Any | None = None
 
 
 @dataclass
@@ -100,6 +94,9 @@ def preview_blueprint(
     sample_memory: Mapping[str, Any] | None = None,
     settings: ContextEngineSettings | None = None,
     materializer: ContextMaterializer | None = None,
+    render_mode: str = "inline",
+    base_url: str | None = None,
+    depth_limit: int | None = None,
 ) -> PreviewResponse:
     from promptic.sdk import blueprints as _blueprint_sdk
 
@@ -109,6 +106,9 @@ def preview_blueprint(
         sample_memory=sample_memory,
         settings=settings,
         materializer=materializer,
+        render_mode=render_mode,
+        base_url=base_url,
+        depth_limit=depth_limit,
     )
 
 
@@ -119,6 +119,9 @@ def preview_blueprint_safe(
     sample_memory: Mapping[str, Any] | None = None,
     settings: ContextEngineSettings | None = None,
     materializer: ContextMaterializer | None = None,
+    render_mode: str = "inline",
+    base_url: str | None = None,
+    depth_limit: int | None = None,
 ) -> SdkResult[PreviewResponse]:
     return _execute_with_error_mapping(
         preview_blueprint,
@@ -127,6 +130,9 @@ def preview_blueprint_safe(
         sample_memory=sample_memory,
         settings=settings,
         materializer=materializer,
+        render_mode=render_mode,
+        base_url=base_url,
+        depth_limit=depth_limit,
     )
 
 
