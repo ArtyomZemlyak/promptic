@@ -15,11 +15,45 @@
 
 ## Constitution Alignment Checklist
 
-- [ ] Document how Entities → Use Cases → Interface adapters are updated; keep dependencies pointing inward.
+- [X] Document how Entities → Use Cases → Interface adapters are updated; keep dependencies pointing inward.
+  - **Status**: ✅ COMPLETE - Architecture documentation created in `docs_site/context-engineering/file-first-architecture.md` explaining:
+    - Entities: `PromptHierarchyBlueprint`, `InstructionReference`, `MemoryChannel`, `RenderMetrics` (domain models in `src/promptic/blueprints/models.py`)
+    - Use Cases: `FileFirstRenderer.render()` orchestrates rendering workflow (application layer)
+    - Interface Adapters: `FileSummaryService`, `ReferenceFormatter`, `ReferenceTreeBuilder`, `RenderMetricsBuilder` (adapt domain to rendering needs)
+    - Dependencies: All point inward (renderer depends on `ContextMaterializer` interface, not concrete implementations)
+    - SOLID principles documented for each adapter class
+    - Dependency flow diagram and integration points explained
+
 - [ ] Capture SOLID responsibilities for each new helper (`FileSummaryService`, `ReferenceFormatter`, etc.) and add `# AICODE-NOTE` where deviations occur.
-- [ ] Plan docs updates in `docs_site/`, quickstart, and inline docstrings; resolve any `# AICODE-ASK`.
+  - **Status**: ⚠️ PARTIALLY COMPLETE - Only one `# AICODE-NOTE` found (in `FileFirstRenderer` class docstring). Helper classes lack explicit SOLID responsibility documentation.
+  - **Action needed**: Add `# AICODE-NOTE` comments to each helper class documenting their SOLID responsibilities:
+    - `FileSummaryService`: Single Responsibility (SRP) - summarizes instructions only; Open/Closed (OCP) - extensible via overrides
+    - `ReferenceFormatter`: SRP - formats paths/hints only; Dependency Inversion (DIP) - depends on base_url abstraction
+    - `ReferenceTreeBuilder`: SRP - builds reference trees; Interface Segregation (ISP) - minimal public interface
+    - `RenderMetricsBuilder`: SRP - calculates metrics only
+
+- [X] Plan docs updates in `docs_site/`, quickstart, and inline docstrings; resolve any `# AICODE-ASK`.
+  - **Status**: ✅ COMPLETE - Documentation updated in:
+    - `docs_site/context-engineering/blueprint-guide.md` (File-First Render Mode Metadata section)
+    - `docs_site/context-engineering/quickstart-validation.md` (File-First Quickstart Check section)
+    - `docs_site/context-engineering/execution-recipes.md` (file-first CLI usage)
+  - No `# AICODE-ASK` comments found in codebase (all resolved).
+
 - [ ] Preserve readability: helper functions ≤40 LOC, descriptive naming, no dead code.
+  - **Status**: ❌ NOT COMPLETE - `FileFirstRenderer.render()` method has 55 LOC (exceeds 40 LOC limit by 15 lines).
+  - **Action needed**: Refactor `render()` method to extract logic into smaller helper methods:
+    - Extract metadata/overrides preparation (lines 297-299)
+    - Extract service initialization (lines 301-312)
+    - Extract hierarchy building (lines 323-329)
+    - Extract markdown rendering call (lines 330-335)
+  - Descriptive naming: ✅ Good (all functions have clear names)
+  - Dead code: ✅ None detected
+
 - [ ] Schedule pytest (unit, integration, contract) plus `pre-commit run --all-files` before requesting review.
+  - **Status**: ❌ NOT COMPLETE - Tasks T031 and T032 are still unchecked:
+    - T031: Run targeted pytest focus (`pytest tests -k file_first`) plus full suite
+    - T032: Run `pre-commit run --all-files` and fix any issues
+  - **Action needed**: Complete T031 and T032 before marking this checklist item as done.
 
 ---
 

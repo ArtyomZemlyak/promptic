@@ -1,0 +1,88 @@
+name: Code Review Workflow
+prompt_template: >
+  You are an expert code reviewer. Your task is to systematically review
+  pull requests, identify issues, and provide actionable feedback.
+settings:
+  instruction_root: instructions
+  adapter_defaults:
+    csv_loader:
+      path: data/pull_requests.csv
+global_instructions:
+  - instruction_id: review_principles
+steps:
+  - step_id: analyze_changes
+    title: Analyze Code Changes
+    kind: sequence
+    instruction_refs:
+      - instruction_id: analyze_changes_step
+    children:
+      - step_id: check_syntax
+        title: Check Syntax and Style
+        kind: sequence
+        instruction_refs:
+          - instruction_id: check_syntax_step
+      - step_id: review_logic
+        title: Review Business Logic
+        kind: sequence
+        instruction_refs:
+          - instruction_id: review_logic_step
+  - step_id: assess_impact
+    title: Assess Impact and Risk
+    kind: sequence
+    instruction_refs:
+      - instruction_id: assess_impact_step
+    children:
+      - step_id: check_dependencies
+        title: Check Dependencies
+        kind: sequence
+        instruction_refs:
+          - instruction_id: check_dependencies_step
+      - step_id: evaluate_performance
+        title: Evaluate Performance Impact
+        kind: sequence
+        instruction_refs:
+          - instruction_id: evaluate_performance_step
+  - step_id: provide_feedback
+    title: Provide Structured Feedback
+    kind: loop
+    loop_slot: issues
+    instruction_refs:
+      - instruction_id: provide_feedback_step
+    children:
+      - step_id: categorize_issue
+        title: Categorize Issue
+        kind: sequence
+        instruction_refs:
+          - instruction_id: categorize_issue_step
+      - step_id: suggest_fix
+        title: Suggest Fix
+        kind: sequence
+        instruction_refs:
+          - instruction_id: suggest_fix_step
+data_slots:
+  - name: pull_requests
+    adapter_key: csv_loader
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          pr_number: {type: string}
+          title: {type: string}
+          files_changed: {type: array, items: {type: string}}
+          diff_url: {type: string}
+  - name: issues
+    adapter_key: csv_loader
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          severity: {type: string, enum: [critical, high, medium, low]}
+          category: {type: string}
+          description: {type: string}
+memory_slots:
+  - name: review_history
+    provider_key: vector_db
+  - name: team_standards
+    provider_key: vector_db

@@ -1,0 +1,139 @@
+name: Content Generation Workflow
+prompt_template: >
+  You are a content creator. Your task is to produce high-quality, engaging
+  content across multiple formats while maintaining brand voice and style.
+settings:
+  instruction_root: instructions
+  adapter_defaults:
+    json_loader:
+      path: data/content_briefs.json
+global_instructions:
+  - instruction_id: content_principles
+steps:
+  - step_id: understand_brief
+    title: Understand Content Brief
+    kind: sequence
+    instruction_refs:
+      - instruction_id: understand_brief_step
+    children:
+      - step_id: analyze_audience
+        title: Analyze Target Audience
+        kind: sequence
+        instruction_refs:
+          - instruction_id: analyze_audience_step
+      - step_id: identify_key_messages
+        title: Identify Key Messages
+        kind: sequence
+        instruction_refs:
+          - instruction_id: identify_key_messages_step
+  - step_id: research_topic
+    title: Research Topic
+    kind: sequence
+    instruction_refs:
+      - instruction_id: research_topic_step
+    children:
+      - step_id: gather_sources
+        title: Gather Reliable Sources
+        kind: sequence
+        instruction_refs:
+          - instruction_id: gather_sources_step
+      - step_id: verify_facts
+        title: Verify Facts and Statistics
+        kind: sequence
+        instruction_refs:
+          - instruction_id: verify_facts_step
+  - step_id: create_outline
+    title: Create Content Outline
+    kind: sequence
+    instruction_refs:
+      - instruction_id: create_outline_step
+    children:
+      - step_id: structure_content
+        title: Structure Content Flow
+        kind: sequence
+        instruction_refs:
+          - instruction_id: structure_content_step
+      - step_id: plan_sections
+        title: Plan Section Details
+        kind: sequence
+        instruction_refs:
+          - instruction_id: plan_sections_step
+  - step_id: write_content
+    title: Write Content
+    kind: loop
+    loop_slot: sections
+    instruction_refs:
+      - instruction_id: write_content_step
+    children:
+      - step_id: draft_section
+        title: Draft Section
+        kind: sequence
+        instruction_refs:
+          - instruction_id: draft_section_step
+      - step_id: refine_language
+        title: Refine Language and Tone
+        kind: sequence
+        instruction_refs:
+          - instruction_id: refine_language_step
+  - step_id: enhance_content
+    title: Enhance Content
+    kind: sequence
+    instruction_refs:
+      - instruction_id: enhance_content_step
+    children:
+      - step_id: add_visuals
+        title: Add Visual Elements
+        kind: sequence
+        instruction_refs:
+          - instruction_id: add_visuals_step
+      - step_id: optimize_seo
+        title: Optimize for SEO
+        kind: sequence
+        instruction_refs:
+          - instruction_id: optimize_seo_step
+  - step_id: review_edit
+    title: Review and Edit
+    kind: sequence
+    instruction_refs:
+      - instruction_id: review_edit_step
+    children:
+      - step_id: check_quality
+        title: Check Quality Standards
+        kind: sequence
+        instruction_refs:
+          - instruction_id: check_quality_step
+      - step_id: proofread
+        title: Proofread for Errors
+        kind: sequence
+        instruction_refs:
+          - instruction_id: proofread_step
+data_slots:
+  - name: content_briefs
+    adapter_key: json_loader
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          title: {type: string}
+          format: {type: string, enum: [blog, article, social, email]}
+          target_audience: {type: string}
+          key_messages: {type: array, items: {type: string}}
+          word_count: {type: integer}
+  - name: sections
+    adapter_key: json_loader
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          heading: {type: string}
+          content_type: {type: string}
+          word_count_target: {type: integer}
+memory_slots:
+  - name: content_library
+    provider_key: vector_db
+  - name: brand_guidelines
+    provider_key: vector_db
+  - name: style_guide
+    provider_key: vector_db

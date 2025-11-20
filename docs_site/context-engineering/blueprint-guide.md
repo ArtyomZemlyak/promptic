@@ -132,6 +132,8 @@ for resolved data/memory, and a table summarizing each step’s instruction bloc
 
 ## File-First Render Mode Metadata
 
+> **Architecture Note**: For a detailed explanation of how the file-first renderer fits into Clean Architecture layers (Entities → Use Cases → Interface Adapters), see [File-First Renderer Architecture](file-first-architecture.md).
+
 Blueprint metadata now accepts a `file_first` section that feeds the new render
 strategy registered inside `TemplateRenderer`. Supported keys:
 
