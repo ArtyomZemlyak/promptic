@@ -25,6 +25,7 @@ python examples/us1-blueprints/run_preview.py
 
 The script will:
 1. Load the blueprint from YAML
-2. Preview the merged context
-3. Show all referenced instructions
-4. Warn on any missing assets
+2. Preview the merged context (formatted terminal output with Rich)
+3. Render plain text context ready for LLM input
+4. Show all referenced instructions
+5. Warn on any missing assets or fallback events

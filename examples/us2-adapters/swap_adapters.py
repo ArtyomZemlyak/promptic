@@ -3,73 +3,51 @@
 
 This script demonstrates:
 - Registering CSV data adapter
-- Registering HTTP data adapter
+- Registering static memory provider
 - Swapping adapters without blueprint changes
+- Rendering contexts with different adapters
 """
 
 from pathlib import Path
 
 from promptic.adapters.registry import AdapterRegistry
 from promptic.sdk import adapters as sdk_adapters
-from promptic.sdk import blueprints
-from promptic.settings.base import ContextEngineSettings
+from promptic.sdk.api import (
+    _create_settings_from_blueprint,
+    build_materializer,
+    load_blueprint,
+    render_for_llm,
+    render_preview,
+)
 
-# Setup
-examples_dir = Path(__file__).parent
-blueprint_path = examples_dir / "blueprint.yaml"
-settings_path = examples_dir / "settings.yaml"
-
-# Load settings from YAML file
-settings = ContextEngineSettings.from_yaml(settings_path)
-
-# Create registry
+# Create registry and register adapters
 registry = AdapterRegistry()
-
-# Register CSV adapter
-print("Registering CSV adapter...")
 sdk_adapters.register_csv_loader(key="csv_loader", registry=registry)
-
-# Register static memory provider
-print("Registering static memory provider...")
 sdk_adapters.register_static_memory_provider(key="static_memory", registry=registry)
+print("✅ Adapters registered")
 
-# Build materializer
-from promptic.sdk.api import build_materializer
+# Minimal API: Load blueprint (settings are in blueprint.yaml)
+blueprint = load_blueprint(Path(__file__).parent / "blueprint.yaml")
+print(f"✅ Blueprint loaded: {blueprint.name}")
 
+# Create materializer with registry and settings from blueprint
+settings = _create_settings_from_blueprint(blueprint)
 materializer = build_materializer(settings=settings, registry=registry)
 
-# Load blueprint using builder
-from promptic.instructions.cache import InstructionCache
-from promptic.instructions.store import FilesystemInstructionStore
-from promptic.pipeline.builder import BlueprintBuilder
-from promptic.pipeline.validation import BlueprintValidator
-
-instruction_store = InstructionCache(
-    FilesystemInstructionStore(settings.instruction_root),
-    max_entries=256,
-)
-validator = BlueprintValidator(settings=settings, instruction_store=instruction_store)
-builder = BlueprintBuilder(settings=settings, validator=validator)
-result = builder.load_from_path(blueprint_path)
-if not result.ok:
-    raise result.error or Exception("Failed to load blueprint")
-blueprint = result.unwrap()
-
-# Preview with CSV adapter
+# Preview with CSV adapter (formatted terminal output)
 print("\n=== Preview with CSV adapter ===")
-# Preview is automatically printed to console with Rich formatting (colors, styles)
-preview1 = blueprints.preview_blueprint(
-    blueprint_id=str(blueprint.id),
-    settings=settings,
-    materializer=materializer,
-)
-# rendered_context contains plain text version (first 200 chars shown for demo)
-print(f"Plain text preview (first 200 chars): {preview1.rendered_context[:200]}...")
+render_preview(blueprint, materializer=materializer)
 
-# Register HTTP adapter with same key (swap)
-print("\nSwapping to HTTP adapter...")
-# Note: In a real scenario, you'd register an HTTP adapter here
-# For demo purposes, we show the swap concept
-print("✅ Adapter swap complete - blueprint unchanged!")
+# Render for LLM with CSV adapter
+print("\n=== Render for LLM with CSV adapter ===")
+llm_text = render_for_llm(blueprint, materializer=materializer)
+print(f"✅ LLM-ready text ({len(llm_text)} chars): {llm_text[:200]}...")
 
-print("\n✅ Adapter swap demonstration complete!")
+# Note: In a real scenario, you would register an HTTP adapter here
+# and swap it by registering with the same key or creating a new registry
+print("\n=== Adapter Swap Note ===")
+print("To swap adapters, you can:")
+print("1. Register a new adapter with the same key (replaces existing)")
+print("2. Create a new registry and materializer with different adapters")
+print("3. The blueprint code remains unchanged - adapter swap is transparent")
+print("✅ Adapter swap demonstration complete!")

@@ -25,6 +25,8 @@ python examples/us2-adapters/swap_adapters.py
 ## Expected Output
 
 The script will:
-1. Register CSV adapter and render blueprint
-2. Register HTTP adapter and render blueprint again
-3. Verify both work without blueprint code changes
+1. Register CSV adapter and static memory provider
+2. Load blueprint and render preview (formatted output)
+3. Render plain text context for LLM with CSV adapter
+4. Demonstrate adapter swap concept (blueprint unchanged)
+5. Show that adapters can be swapped without modifying blueprint code

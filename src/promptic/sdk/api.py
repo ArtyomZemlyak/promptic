@@ -30,12 +30,7 @@ class PreviewResponse:
     fallback_events: list[FallbackEvent] = field(default_factory=list)
 
 
-@dataclass
-class ExecutionResponse:
-    run_id: str
-    events: list[ExecutionLogEntry] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    fallback_events: list[FallbackEvent] = field(default_factory=list)
+# ExecutionResponse removed - pipeline execution handled by external agent frameworks
 
 
 @dataclass
@@ -135,41 +130,8 @@ def preview_blueprint_safe(
     )
 
 
-def run_pipeline(
-    *,
-    blueprint_id: str,
-    data_inputs: Mapping[str, Any] | None = None,
-    memory_inputs: Mapping[str, Any] | None = None,
-    settings: ContextEngineSettings | None = None,
-    materializer: ContextMaterializer | None = None,
-) -> ExecutionResponse:
-    from promptic.sdk import pipeline as _pipeline_sdk
-
-    return _pipeline_sdk.run_pipeline(
-        blueprint_id=blueprint_id,
-        data_inputs=data_inputs,
-        memory_inputs=memory_inputs,
-        settings=settings,
-        materializer=materializer,
-    )
-
-
-def run_pipeline_safe(
-    *,
-    blueprint_id: str,
-    data_inputs: Mapping[str, Any] | None = None,
-    memory_inputs: Mapping[str, Any] | None = None,
-    settings: ContextEngineSettings | None = None,
-    materializer: ContextMaterializer | None = None,
-) -> SdkResult[ExecutionResponse]:
-    return _execute_with_error_mapping(
-        run_pipeline,
-        blueprint_id=blueprint_id,
-        data_inputs=data_inputs,
-        memory_inputs=memory_inputs,
-        settings=settings,
-        materializer=materializer,
-    )
+# Pipeline execution removed - handled by external agent frameworks
+# See spec: "Library focuses solely on context construction (loading blueprints, rendering)"
 
 
 def _execute_with_error_mapping(
@@ -206,23 +168,52 @@ def load_blueprint(
     (C) With optional settings: load_blueprint("my_blueprint", settings=...)
 
     All dependencies (instructions, adapters) are resolved automatically.
+    Paths are automatically determined relative to blueprint file location.
 
     # AICODE-NOTE: This is the minimal API entry point that hides all complexity
     #              of blueprint loading, validation, and dependency resolution.
+    #              Settings from blueprint.yaml are used, with optional override.
     """
     from promptic.sdk import blueprints as _blueprint_sdk
 
+    # Determine blueprint file path
+    blueprint_path: Path | None = None
+    if isinstance(blueprint_id_or_path, Path):
+        blueprint_path = (
+            blueprint_id_or_path.resolve()
+            if blueprint_id_or_path.is_absolute()
+            else blueprint_id_or_path
+        )
+    else:
+        path = Path(blueprint_id_or_path)
+        if path.is_absolute() or (path.exists() and path.is_file()):
+            blueprint_path = path.resolve() if path.is_absolute() else path
+        elif "/" in str(blueprint_id_or_path) or path.suffix in {".yaml", ".yml", ".json"}:
+            blueprint_path = path
+
+    # Create settings with auto-detected paths if blueprint path is known
     runtime_settings = settings or ContextEngineSettings()
+    if blueprint_path and blueprint_path.exists():
+        blueprint_dir = blueprint_path.parent.resolve()
+        # Auto-detect paths relative to blueprint file
+        if not settings or runtime_settings.blueprint_root == Path("blueprints"):
+            runtime_settings.blueprint_root = blueprint_dir
+        if not settings or runtime_settings.instruction_root == Path("instructions"):
+            # Check if instructions directory exists relative to blueprint
+            default_instructions = blueprint_dir / "instructions"
+            if default_instructions.exists():
+                runtime_settings.instruction_root = default_instructions
+            else:
+                runtime_settings.instruction_root = blueprint_dir
+
     runtime_settings.ensure_directories()
     builder = _blueprint_sdk._build_builder(runtime_settings)
 
-    # Check if it's an explicit path
-    path = Path(blueprint_id_or_path)
-    if path.is_absolute() or (path.exists() and path.is_file()):
-        result = builder.load_from_path(path)
-    elif "/" in str(blueprint_id_or_path) or path.suffix in {".yaml", ".yml", ".json"}:
-        # Looks like a path even if it doesn't exist yet
-        result = builder.load_from_path(path)
+    # Load blueprint
+    if blueprint_path and blueprint_path.exists():
+        result = builder.load_from_path(blueprint_path)
+    elif blueprint_path:
+        result = builder.load_from_path(blueprint_path)
     else:
         # Treat as blueprint_id for auto-discovery
         result = builder.load(str(blueprint_id_or_path))
@@ -231,7 +222,73 @@ def load_blueprint(
         error = result.error or PrompticError("Failed to load blueprint.")
         raise error
 
-    return result.unwrap()
+    blueprint = result.unwrap()
+
+    # Apply settings from blueprint if they exist
+    if blueprint.settings.instruction_root:
+        # Resolve relative to blueprint directory
+        if blueprint_path:
+            blueprint_dir = blueprint_path.parent.resolve()
+            instruction_path = Path(blueprint.settings.instruction_root)
+            if not instruction_path.is_absolute():
+                instruction_path = (blueprint_dir / instruction_path).resolve()
+            runtime_settings.instruction_root = instruction_path
+
+    # Apply adapter defaults from blueprint
+    if blueprint.settings.adapter_defaults:
+        for adapter_key, adapter_config in blueprint.settings.adapter_defaults.items():
+            # Resolve relative paths in adapter config
+            if isinstance(adapter_config, dict) and "path" in adapter_config:
+                path_value = adapter_config["path"]
+                if isinstance(path_value, str) and blueprint_path:
+                    path_obj = Path(path_value)
+                    if not path_obj.is_absolute():
+                        blueprint_dir = blueprint_path.parent.resolve()
+                        path_obj = (blueprint_dir / path_obj).resolve()
+                        adapter_config["path"] = str(path_obj)
+            runtime_settings.adapter_registry.data_defaults[adapter_key] = adapter_config
+
+    return blueprint
+
+
+def _create_settings_from_blueprint(
+    blueprint: ContextBlueprint, base_settings: ContextEngineSettings | None = None
+) -> ContextEngineSettings:
+    """Create ContextEngineSettings from blueprint settings."""
+    runtime_settings = base_settings or ContextEngineSettings()
+
+    # Apply instruction_root from blueprint if specified
+    if blueprint.settings.instruction_root:
+        instruction_path = Path(blueprint.settings.instruction_root)
+        # If relative path, resolve relative to current working directory
+        if not instruction_path.is_absolute():
+            instruction_path = Path.cwd() / instruction_path
+        runtime_settings.instruction_root = instruction_path.resolve()
+
+    # Apply adapter defaults from blueprint
+    if blueprint.settings.adapter_defaults:
+        for adapter_key, adapter_config in blueprint.settings.adapter_defaults.items():
+            # Copy config to avoid modifying original
+            config_copy = dict(adapter_config)
+            # Resolve relative paths in adapter config
+            if "path" in config_copy and isinstance(config_copy["path"], str):
+                path_obj = Path(config_copy["path"])
+                if not path_obj.is_absolute():
+                    path_obj = (Path.cwd() / path_obj).resolve()
+                config_copy["path"] = str(path_obj)
+            runtime_settings.adapter_registry.data_defaults[adapter_key] = config_copy
+
+    # Apply size budgets from blueprint if specified
+    if blueprint.settings.max_context_chars:
+        runtime_settings.size_budget.max_context_chars = blueprint.settings.max_context_chars
+    if blueprint.settings.max_step_depth:
+        runtime_settings.size_budget.max_step_depth = blueprint.settings.max_step_depth
+    if blueprint.settings.per_step_budget_chars:
+        runtime_settings.size_budget.per_step_budget_chars = (
+            blueprint.settings.per_step_budget_chars
+        )
+
+    return runtime_settings
 
 
 def render_preview(
@@ -247,12 +304,13 @@ def render_preview(
 
     # AICODE-NOTE: This function prints directly to console using Rich formatting.
     #              For programmatic access to preview text, use preview_blueprint().
+    #              Settings from blueprint.yaml are used if settings not provided.
     """
     from promptic.context.rendering import render_context_preview
     from promptic.pipeline.previewer import ContextPreviewer
     from promptic.sdk import blueprints as _blueprint_sdk
 
-    runtime_settings = settings or ContextEngineSettings()
+    runtime_settings = _create_settings_from_blueprint(blueprint, settings)
     runtime_settings.ensure_directories()
     builder = _blueprint_sdk._build_builder(runtime_settings)
     preview_materializer = materializer or build_materializer(settings=runtime_settings)
@@ -332,12 +390,13 @@ def render_for_llm(
 
     # AICODE-NOTE: This function produces clean text suitable for direct LLM
     #              consumption, separate from the Rich-formatted preview.
+    #              Settings from blueprint.yaml are used if settings not provided.
     """
     from promptic.context.rendering import render_context_for_llm
     from promptic.pipeline.previewer import ContextPreviewer
     from promptic.sdk import blueprints as _blueprint_sdk
 
-    runtime_settings = settings or ContextEngineSettings()
+    runtime_settings = _create_settings_from_blueprint(blueprint, settings)
     runtime_settings.ensure_directories()
     builder = _blueprint_sdk._build_builder(runtime_settings)
     preview_materializer = materializer or build_materializer(settings=runtime_settings)
@@ -488,13 +547,10 @@ def _iter_all_steps(steps: list[BlueprintStep]) -> Iterator[BlueprintStep]:
 
 __all__ = [
     "PreviewResponse",
-    "ExecutionResponse",
     "build_materializer",
     "bootstrap_runtime",
     "preview_blueprint",
     "preview_blueprint_safe",
-    "run_pipeline",
-    "run_pipeline_safe",
     "SdkResult",
     "SdkRuntime",
     "load_blueprint",

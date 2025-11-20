@@ -213,4 +213,4 @@ node = InstructionNode(
 - See `docs_site/context-engineering/markdown-templating.md` for Markdown format details
 - See `docs_site/context-engineering/jinja2-templating.md` for Jinja2 syntax and filters
 - See `docs_site/context-engineering/template-context-variables.md` for complete context variable reference
-- See examples in `examples/us1-markdown-templating/`, `examples/us2-jinja2-templating/`, etc.
+- See examples in `examples/markdown-templating/`, `examples/jinja2-templating/`, etc.

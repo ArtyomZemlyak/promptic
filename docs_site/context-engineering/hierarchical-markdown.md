@@ -44,7 +44,7 @@ setting it to `False` removes the block entirely.
   validate hierarchy parsing and conditional extraction.
 - Integration test `tests/integration/test_instruction_templating.py::
   test_markdown_hierarchy_conditionals` demonstrates end-to-end rendering.
-- Example project: `examples/us4-hierarchical-markdown/`.
+- Example project: `examples/hierarchical-markdown/`.
 
 ## Authoring tips
 

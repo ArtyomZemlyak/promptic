@@ -1,9 +1,0 @@
-# Settings configuration for us1-blueprints example
-blueprint_root: .
-instruction_root: instructions
-log_root: logs
-
-adapter_registry:
-  data_defaults:
-    csv_loader:
-      path: data/sources.csv

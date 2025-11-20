@@ -1,7 +1,7 @@
 # Implementation Plan: Instruction Data Insertion with Multiple Templating Formats
 
-**Branch**: `001-instruction-templating` | **Date**: 2025-01-28 | **Spec**: `/specs/001-instruction-templating/spec.md`
-**Input**: Feature specification from `/specs/001-instruction-templating/spec.md`
+**Branch**: `002-instruction-templating` | **Date**: 2025-01-28 | **Spec**: `/specs/002-instruction-templating/spec.md`
+**Input**: Feature specification from `/specs/002-instruction-templating/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. Align every section with the `promptic Constitution` (clean architecture, SOLID, tests, docs, readability).
 
@@ -31,7 +31,7 @@ This feature extends the context engineering library to support dynamic data ins
 
 - **Quality Gates**: Black (line-length 100) and isort (profile black) formatting enforced via `pre-commit` hooks; `pre-commit run --all-files` must pass before any commit. Static analysis via mypy (type checking) optional but recommended. No contributor may claim tooling unavailable—install dependencies per AGENTS.md.
 
-- **Documentation & Traceability**: **docs_site/**: Markdown data insertion guide (`docs_site/context-engineering/markdown-templating.md`), Jinja2 templating guide (`docs_site/context-engineering/jinja2-templating.md`), YAML custom patterns guide (`docs_site/context-engineering/yaml-templating.md`), hierarchical Markdown guide (`docs_site/context-engineering/hierarchical-markdown.md`), context variables reference (`docs_site/context-engineering/template-context-variables.md`). **Specs**: `spec.md` and `plan.md` updated alongside code. **Examples**: `examples/us1-markdown-templating/`, `examples/us2-jinja2-templating/`, `examples/us3-yaml-patterns/` with README, instruction files, sample data, runnable Python scripts. **AICODE tags**: Use `# AICODE-NOTE` for architecture decisions (separate Jinja2 environment, namespacing strategy), `# AICODE-TODO` for future work (Markdown hierarchy parsing), `# AICODE-ASK` for user questions (resolve before merge).
+- **Documentation & Traceability**: **docs_site/**: Markdown data insertion guide (`docs_site/context-engineering/markdown-templating.md`), Jinja2 templating guide (`docs_site/context-engineering/jinja2-templating.md`), YAML custom patterns guide (`docs_site/context-engineering/yaml-templating.md`), hierarchical Markdown guide (`docs_site/context-engineering/hierarchical-markdown.md`), context variables reference (`docs_site/context-engineering/template-context-variables.md`). **Specs**: `spec.md` and `plan.md` updated alongside code. **Examples**: `examples/markdown-templating/`, `examples/jinja2-templating/`, `examples/yaml-patterns/`, `examples/hierarchical-markdown/` with README, instruction files, sample data, runnable Python scripts. **AICODE tags**: Use `# AICODE-NOTE` for architecture decisions (separate Jinja2 environment, namespacing strategy), `# AICODE-TODO` for future work (Markdown hierarchy parsing), `# AICODE-ASK` for user questions (resolve before merge).
 
 - **Readability & DX**: Template renderer functions limited to <100 logical lines; descriptive names (`render_markdown`, `render_jinja2`, `render_yaml`); small, focused modules (one renderer class per file where possible). All public APIs include docstrings explaining side effects, error handling, context variable availability. Private helpers include inline comments when template parsing logic is non-obvious. No `.md`/`.txt` status dumps in repo root—knowledge lives in specs, docs_site, or inline comments.
 
@@ -40,7 +40,7 @@ This feature extends the context engineering library to support dynamic data ins
 ### Documentation (this feature)
 
 ```text
-specs/001-instruction-templating/
+specs/002-instruction-templating/
 ├── plan.md              # This file (/speckit.plan command output)
 ├── research.md          # Phase 0 output (/speckit.plan command)
 ├── data-model.md        # Phase 1 output (/speckit.plan command)
@@ -89,19 +89,19 @@ tests/
         └── test_template_renderer_context.py
 
 examples/
-├── us1-markdown-templating/      # User Story 1 examples
+├── markdown-templating/          # User Story 1 examples
 │   ├── README.md
 │   ├── instruction.md
 │   └── render_example.py
-├── us2-jinja2-templating/        # User Story 2 examples
+├── jinja2-templating/            # User Story 2 examples
 │   ├── README.md
 │   ├── instruction.jinja
 │   └── render_example.py
-├── us3-yaml-patterns/            # User Story 3 examples
+├── yaml-patterns/                # User Story 3 examples
 │   ├── README.md
 │   ├── instruction.yaml
 │   └── render_example.py
-└── us4-hierarchical-markdown/    # User Story 4 examples (P3)
+└── hierarchical-markdown/       # User Story 4 examples (P3)
     ├── README.md
     ├── instruction.md
     └── render_example.py

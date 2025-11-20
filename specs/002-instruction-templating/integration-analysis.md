@@ -1,11 +1,11 @@
 # Integration Analysis: Context Engine and Instruction Templating
 
 **Created**: 2025-01-28  
-**Purpose**: Analyze changes made in context engine (001-context-engine) and how they relate to instruction templating (001-instruction-templating) to identify conflicts, overlaps, and integration points.
+**Purpose**: Analyze changes made in context engine (001-context-engine) and how they relate to instruction templating (002-instruction-templating) to identify conflicts, overlaps, and integration points.
 
 ## Executive Summary
 
-The context engine (001-context-engine) is **implemented** and uses Jinja2 for rendering blueprint `prompt_template` fields. Instruction templating (001-instruction-templating) is now **implemented** with dedicated format renderers, hierarchy parsing, and loop-aware contexts. Key outcomes:
+The context engine (001-context-engine) is **implemented** and uses Jinja2 for rendering blueprint `prompt_template` fields. Instruction templating (002-instruction-templating) is now **implemented** with dedicated format renderers, hierarchy parsing, and loop-aware contexts. Key outcomes:
 
 - ✅ **TemplateRenderer integration**: `ContextPreviewer` now routes every instruction through the dispatcher, applying `InstructionFallbackPolicy` semantics automatically.
 - ✅ **Namespaced context variables**: `InstructionRenderContext` exposes `data.*`, `memory.*`, `step.*` (including `step.loop_item`), and `blueprint.*`. Documentation lives in `docs_site/context-engineering/template-context-variables.md`.
@@ -61,7 +61,7 @@ Blueprint → InstructionNodeRef → ContextMaterializer.resolve_instruction_ref
 
 ### 2.1 What the Spec Requires
 
-From `specs/001-instruction-templating/spec.md`:
+From `specs/002-instruction-templating/spec.md`:
 
 - **FR-001**: Markdown instructions with `{}` placeholders (Python string format syntax)
 - **FR-002**: Jinja2 templating for `.jinja` instruction files
@@ -390,6 +390,6 @@ instruction_env = Environment(
 
 ### Instruction Templating Spec
 
-- Specification: `specs/001-instruction-templating/spec.md`
+- Specification: `specs/002-instruction-templating/spec.md`
 - Requirements: Lines 99-115
 - Architecture: Lines 116-127

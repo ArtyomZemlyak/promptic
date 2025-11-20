@@ -1,6 +1,6 @@
 # Tasks: Instruction Data Insertion with Multiple Templating Formats
 
-**Input**: Design documents from `/specs/001-instruction-templating/`
+**Input**: Design documents from `/specs/002-instruction-templating/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
 **Tests**: Tests are MANDATORY under the `promptic Constitution`. List contract, integration, and unit coverage for every story before implementation, and ensure each test fails before the matching code exists.
@@ -80,7 +80,7 @@
 - [x] T019 [US1] Register `MarkdownFormatRenderer` in `TemplateRenderer` dispatcher in `src/promptic/pipeline/template_renderer.py` for format `"md"`
 - [x] T020 [US1] Add error handling in `MarkdownFormatRenderer` that raises `TemplateRenderError` with descriptive messages for missing placeholders, including line number and placeholder name
 - [x] T021 [US1] Add logging instrumentation in `src/promptic/pipeline/format_renderers/markdown.py` with `# AICODE-NOTE` documenting format detection and rendering strategy
-- [x] T022 [US1] Create example directory `examples/us1-markdown-templating/` with `README.md`, sample instruction file `instruction.md`, and runnable Python script `render_example.py` demonstrating Markdown templating
+- [x] T022 [US1] Create example directory `examples/markdown-templating/` with `README.md`, sample instruction file `instruction.md`, and runnable Python script `render_example.py` demonstrating Markdown templating
 - [x] T023 [US1] Write documentation guide `docs_site/context-engineering/markdown-templating.md` covering Markdown data insertion syntax, nested access, escaping, and examples
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently. Markdown instructions can be rendered with data placeholders.
@@ -110,7 +110,7 @@
 - [x] T033 [US2] Add error handling in `Jinja2FormatRenderer` that respects `InstructionFallbackPolicy` (raises `TemplateRenderError` for `error` policy, emits warnings for `warn` policy, returns empty string for `noop` policy)
 - [x] T034 [US2] Register `Jinja2FormatRenderer` in `TemplateRenderer` dispatcher in `src/promptic/pipeline/template_renderer.py` for format `"jinja"`
 - [x] T035 [US2] Add lazy initialization for Jinja2 environment in `Jinja2FormatRenderer` (created on first use) with `# AICODE-NOTE` documenting performance considerations
-- [x] T036 [US2] Create example directory `examples/us2-jinja2-templating/` with `README.md`, sample instruction file `instruction.jinja`, and runnable Python script `render_example.py` demonstrating Jinja2 templating
+- [x] T036 [US2] Create example directory `examples/jinja2-templating/` with `README.md`, sample instruction file `instruction.jinja`, and runnable Python script `render_example.py` demonstrating Jinja2 templating
 - [x] T037 [US2] Write documentation guide `docs_site/context-engineering/jinja2-templating.md` covering Jinja2 syntax, available filters/globals, context variables, and examples
 - [x] T038 [US2] Add `# AICODE-NOTE` comments in `src/promptic/pipeline/format_renderers/jinja2.py` documenting separate environment setup, instruction-specific filters/globals, and available namespaced context variables
 
@@ -140,7 +140,7 @@
 - [x] T047 [US3] Add escape mechanism support in `YamlFormatRenderer` for handling pattern collisions with literal text in instruction content
 - [x] T048 [US3] Register `YamlFormatRenderer` in `TemplateRenderer` dispatcher in `src/promptic/pipeline/template_renderer.py` for formats `"yaml"` and `"yml"`
 - [x] T049 [US3] Add `# AICODE-NOTE` comments in `src/promptic/pipeline/format_renderers/yaml.py` documenting pattern configuration and escaping rules
-- [x] T050 [US3] Create example directory `examples/us3-yaml-patterns/` with `README.md`, sample instruction file `instruction.yaml`, and runnable Python script `render_example.py` demonstrating YAML custom patterns
+- [x] T050 [US3] Create example directory `examples/yaml-patterns/` with `README.md`, sample instruction file `instruction.yaml`, and runnable Python script `render_example.py` demonstrating YAML custom patterns
 - [x] T051 [US3] Write documentation guide `docs_site/context-engineering/yaml-templating.md` covering custom pattern configuration, validation, escaping, and examples
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 should all work independently. YAML instructions can be rendered with custom placeholder patterns.
@@ -167,7 +167,7 @@
 - [x] T058 [US4] Integrate `MarkdownHierarchyParser` into instruction loading flow (optional, runs during instruction loading) producing structured metadata that informs rendering decisions
 - [x] T059 [US4] Add conditional section rendering logic that includes/excludes sections based on context data during template rendering
 - [x] T060 [US4] Add `# AICODE-NOTE` comments in `src/promptic/pipeline/format_renderers/markdown_hierarchy.py` documenting hierarchy syntax and parsing strategy
-- [x] T061 [US4] Create example directory `examples/us4-hierarchical-markdown/` with `README.md`, sample instruction file `instruction.md` with hierarchical structure, and runnable Python script `render_example.py`
+- [x] T061 [US4] Create example directory `examples/hierarchical-markdown/` with `README.md`, sample instruction file `instruction.md` with hierarchical structure, and runnable Python script `render_example.py`
 - [x] T062 [US4] Write documentation guide `docs_site/context-engineering/hierarchical-markdown.md` covering hierarchy syntax, conditional markers, and examples
 
 **Checkpoint**: At this point, all user stories should work independently. Markdown instructions can express hierarchical logic and conditional rendering.
@@ -189,7 +189,7 @@
 **Purpose**: Improvements that affect multiple user stories, documentation, and quality gates.
 
 - [x] T066 [P] Write context variables reference guide `docs_site/context-engineering/template-context-variables.md` documenting all namespaced variables (`data.*`, `memory.*`, `step.*`, `blueprint.*`) with examples
-- [x] T067 [P] Update integration analysis document `specs/001-instruction-templating/integration-analysis.md` with implementation notes and resolved clarifications
+- [x] T067 [P] Update integration analysis document `specs/002-instruction-templating/integration-analysis.md` with implementation notes and resolved clarifications
 - [x] T068 [P] Add contract test for context variable availability in `tests/contract/test_template_context_contract.py` verifying all documented context variables are accessible
 - [x] T069 [P] Add contract test for format detection and routing in `tests/contract/test_format_renderer_interface.py` extending existing test file
 - [x] T070 Harden error messages and exception mapping across template rendering modules in `src/promptic/context/errors.py` and format renderers

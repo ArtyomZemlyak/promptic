@@ -7,9 +7,12 @@ This example demonstrates the full context engineering library workflow covering
 This comprehensive example shows:
 - Blueprint authoring with hierarchical steps
 - Adapter registration and configuration
-- Pipeline execution with logging
-- Instruction fallback handling
-- Complete audit trail
+- Preview generation (formatted terminal output)
+- Render for LLM (plain text ready for LLM input)
+- Instruction rendering
+- Fallback handling
+
+**Note**: This library focuses on context construction only. Pipeline execution is handled by external agent frameworks.
 
 ## Files
 
@@ -29,7 +32,7 @@ python examples/complete/end_to_end.py
 The script will demonstrate:
 1. Blueprint loading and validation
 2. Adapter registration
-3. Preview generation
-4. Pipeline execution
-5. Log analysis
+3. Preview generation (Rich-formatted output)
+4. Render for LLM (plain text for LLM consumption)
+5. Instruction rendering (specific instruction by ID)
 6. Fallback event handling

@@ -181,12 +181,41 @@ class FallbackEvent(BaseModel):
     )
 
 
+class BlueprintSettings(BaseModel):
+    """Blueprint-specific settings for paths and adapters."""
+
+    instruction_root: Optional[str] = Field(
+        default=None,
+        description="Relative path to instructions directory (default: 'instructions' relative to blueprint file)",
+    )
+    adapter_defaults: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Default configuration for adapters (e.g., {'csv_loader': {'path': 'data/sources.csv'}})",
+    )
+    max_context_chars: Optional[int] = Field(
+        default=None,
+        ge=1024,
+        description="Maximum characters allowed in rendered context (default: 16000)",
+    )
+    max_step_depth: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Maximum depth of nested steps (default: 5)",
+    )
+    per_step_budget_chars: Optional[int] = Field(
+        default=None,
+        ge=512,
+        description="Recommended character budget per step (default: 4000)",
+    )
+
+
 class ContextBlueprint(BaseModel):
     """
     Core blueprint describing prompt, instructions, data slots, and steps.
 
     # AICODE-NOTE: ContextBlueprint enforces uniqueness constraints eagerly so
     #              downstream builders can assume canonicalized structures.
+    #              Settings are embedded in blueprint to avoid external configuration files.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -199,6 +228,10 @@ class ContextBlueprint(BaseModel):
     data_slots: List[DataSlot] = Field(default_factory=list)
     memory_slots: List[MemorySlot] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    settings: BlueprintSettings = Field(
+        default_factory=BlueprintSettings,
+        description="Blueprint-specific settings for paths and adapters",
+    )
 
     @model_validator(mode="after")
     def _validate_uniqueness(self) -> "ContextBlueprint":
@@ -263,6 +296,7 @@ class ContextBlueprint(BaseModel):
 
 __all__ = [
     "AdapterRegistration",
+    "BlueprintSettings",
     "BlueprintStep",
     "Condition",
     "ContextBlueprint",

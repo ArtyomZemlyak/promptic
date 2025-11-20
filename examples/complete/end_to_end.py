@@ -2,37 +2,29 @@
 """Complete end-to-end example demonstrating all library functionality.
 
 This script shows:
-- Blueprint authoring and loading
+- Blueprint authoring and loading (settings in blueprint.yaml)
 - Adapter registration
-- Preview generation
-- Pipeline execution
-- Log analysis
+- Preview generation (formatted terminal output)
+- Render for LLM (plain text ready for LLM input)
+- Instruction rendering
 - Fallback handling
+
+Note: This library focuses on context construction only. Pipeline execution
+is handled by external agent frameworks.
 """
 
 from pathlib import Path
 
 from promptic.adapters.registry import AdapterRegistry
-from promptic.instructions.cache import InstructionCache
-from promptic.instructions.store import FilesystemInstructionStore
-from promptic.pipeline.builder import BlueprintBuilder
-from promptic.pipeline.validation import BlueprintValidator
 from promptic.sdk import adapters as sdk_adapters
-from promptic.sdk import blueprints, pipeline
-from promptic.sdk.api import build_materializer
-from promptic.settings.base import ContextEngineSettings
-
-# Setup paths
-examples_dir = Path(__file__).parent
-blueprint_path = examples_dir / "research_flow.yaml"
-instructions_dir = examples_dir / "instructions"
-data_dir = examples_dir / "data"
-
-# Configure settings
-settings = ContextEngineSettings()
-settings.instruction_root = instructions_dir
-settings.blueprint_root = examples_dir
-settings.adapter_registry.data_defaults["csv_loader"] = {"path": str(data_dir / "sources.csv")}
+from promptic.sdk.api import (
+    _create_settings_from_blueprint,
+    build_materializer,
+    load_blueprint,
+    render_for_llm,
+    render_instruction,
+    render_preview,
+)
 
 # Create registry and register adapters
 print("=== Setting up adapters ===")
@@ -41,54 +33,46 @@ sdk_adapters.register_csv_loader(key="csv_loader", registry=registry)
 sdk_adapters.register_static_memory_provider(key="vector_db", registry=registry)
 print("✅ Adapters registered")
 
-# Build materializer
+# Minimal API: Load blueprint (settings are in blueprint.yaml)
+print("\n=== Loading blueprint ===")
+blueprint = load_blueprint(Path(__file__).parent / "research_flow.yaml")
+print(f"✅ Blueprint loaded: {blueprint.name}")
+print(f"   Steps: {len(blueprint.steps)}")
+print(f"   Data slots: {len(blueprint.data_slots)}")
+print(f"   Memory slots: {len(blueprint.memory_slots)}")
+
+# Create materializer with registry and settings from blueprint
+settings = _create_settings_from_blueprint(blueprint)
 materializer = build_materializer(settings=settings, registry=registry)
 
-# Load blueprint
-print("\n=== Loading blueprint ===")
-instruction_store = InstructionCache(
-    FilesystemInstructionStore(settings.instruction_root),
-    max_entries=256,
-)
-validator = BlueprintValidator(settings=settings, instruction_store=instruction_store)
-builder = BlueprintBuilder(settings=settings, validator=validator)
-result = builder.load_from_path(blueprint_path)
-if not result.ok:
-    raise result.error or Exception("Failed to load blueprint")
-blueprint = result.unwrap()
-print(f"✅ Blueprint loaded: {blueprint.name}")
+# Preview (formatted terminal output with Rich)
+print("\n=== Generating preview (formatted) ===")
+render_preview(blueprint, materializer=materializer)
+print(f"✅ Preview generated")
 
-# Preview
-print("\n=== Generating preview ===")
-# Preview is automatically printed to console with Rich formatting (colors, styles)
-preview = blueprints.preview_blueprint(
-    blueprint_id=str(blueprint.id),
-    settings=settings,
-    materializer=materializer,
-)
-print("✅ Preview generated")
-# rendered_context contains plain text version for programmatic use
-print(f"Plain text preview length: {len(preview.rendered_context)} characters")
+# Render for LLM (plain text ready for LLM input)
+print("\n=== Rendering for LLM (plain text) ===")
+llm_text = render_for_llm(blueprint, materializer=materializer)
+print(f"✅ LLM-ready text generated")
+print(f"   Text length: {len(llm_text)} characters")
+print(f"   First 200 chars: {llm_text[:200]}...")
 
-if preview.fallback_events:
-    print(f"\n⚠️  {len(preview.fallback_events)} fallback events detected")
-
-# Execute pipeline
-print("\n=== Executing pipeline ===")
-run = pipeline.run_pipeline(
-    blueprint_id=str(blueprint.id),
-    settings=settings,
-    materializer=materializer,
-)
-print("✅ Pipeline executed")
-
-# Analyze execution log
-print("\n=== Execution Log Analysis ===")
-print(f"Total events: {len(run.events)}")
-for event in run.events[:5]:  # Show first 5 events
-    print(f"  {event.event_type} @ {event.step_id}")
-
-if run.fallback_events:
-    print(f"\n⚠️  {len(run.fallback_events)} fallback events during execution")
+# Render specific instruction
+if blueprint.steps:
+    first_step = blueprint.steps[0]
+    if first_step.instruction_refs:
+        instruction_id = first_step.instruction_refs[0].instruction_id
+        print(f"\n=== Rendering instruction: {instruction_id} ===")
+        instruction_text = render_instruction(
+            blueprint=blueprint,
+            instruction_id=instruction_id,
+            step_id=first_step.step_id,
+            materializer=materializer,
+        )
+        print(f"✅ Instruction rendered")
+        print(f"   Length: {len(instruction_text)} characters")
+        print(f"   Preview: {instruction_text[:150]}...")
 
 print("\n✅ End-to-end demonstration complete!")
+print("\nNote: This library constructs contexts for LLM input.")
+print("      Pipeline execution is handled by external agent frameworks.")

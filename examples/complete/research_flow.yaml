@@ -2,6 +2,11 @@ name: Research Flow
 prompt_template: >
   You are a structured research assistant. Analyze sources systematically
   and produce comprehensive summaries with proper citations.
+settings:
+  instruction_root: instructions
+  adapter_defaults:
+    csv_loader:
+      path: data/sources.csv
 global_instructions:
   - instruction_id: root_guidance
 steps:

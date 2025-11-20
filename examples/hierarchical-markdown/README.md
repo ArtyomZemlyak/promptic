@@ -8,7 +8,7 @@ contains heading-based structure plus conditional markers of the form
 ## Running the example
 
 ```bash
-python examples/us4-hierarchical-markdown/render_hierarchical.py
+python examples/hierarchical-markdown/render_hierarchical.py
 ```
 
 The script renders the instruction twice:

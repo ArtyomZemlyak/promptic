@@ -21,7 +21,7 @@
 
 ### Session 2025-01-27
 
-- Q: Where should examples folder be located and how should it be structured? → A: Repository root `examples/` with subdirectories by user story (us1-blueprints/, us2-adapters/, us3-pipelines/) plus `complete/` for end-to-end scenarios covering all functionality.
+- Q: Where should examples folder be located and how should it be structured? → A: Repository root `examples/` with subdirectories by user story (us1-blueprints/, us2-adapters/) plus `complete/` for end-to-end scenarios covering all functionality.
 - Q: Should the spec define explicit performance targets (latency, throughput, scale limits)? → A: No explicit performance targets; optimize based on profiling during development. Size budgets (per-step context limits) remain the primary constraint mechanism.
 - Q: What error response format should the SDK use (exceptions vs structured errors vs hybrid)? → A: Hybrid approach: raise domain-specific exceptions (e.g., `BlueprintValidationError`, `AdapterNotFoundError`) for fatal errors; return structured error dicts in response objects for warnings/non-fatal issues (e.g., fallback events, validation warnings).
 - Q: What instruction asset format support is required (plain-text only vs templates vs multiple formats)? → A: Support multiple formats natively (Markdown, JSON, YAML, plain-text) with format auto-detection. JSON is the canonical/main format internally; all other formats convert to JSON during ingestion/processing.
