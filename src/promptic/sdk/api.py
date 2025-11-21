@@ -8,10 +8,12 @@ from typing import Any, Callable, Generic, Iterator, Mapping, Optional, TypeVar
 from promptic.adapters.registry import AdapterRegistry
 from promptic.blueprints.models import BlueprintStep, ContextBlueprint, FallbackEvent
 from promptic.context.errors import ErrorDetail, PrompticError, describe_error
+from promptic.context.nodes.models import NetworkConfig, NodeNetwork
 from promptic.context.template_context import build_instruction_context
 from promptic.instructions.cache import InstructionCache
 from promptic.instructions.store import FilesystemInstructionStore, InstructionResolver
 from promptic.pipeline.context_materializer import ContextMaterializer
+from promptic.sdk.nodes import load_node_network
 from promptic.settings.base import ContextEngineSettings
 
 TResponse = TypeVar("TResponse")
@@ -164,9 +166,9 @@ def load_blueprint(
     blueprint_id_or_path: str | Path,
     *,
     settings: ContextEngineSettings | None = None,
-) -> ContextBlueprint:
+) -> NodeNetwork:
     """
-    Load a blueprint with automatic dependency resolution.
+    Load a blueprint as a node network with automatic dependency resolution.
 
     Supports three variants:
     (A) Auto-discovery by name: load_blueprint("my_blueprint")
@@ -176,12 +178,10 @@ def load_blueprint(
     All dependencies (instructions, adapters) are resolved automatically.
     Paths are automatically determined relative to blueprint file location.
 
-    # AICODE-NOTE: This is the minimal API entry point that hides all complexity
-    #              of blueprint loading, validation, and dependency resolution.
-    #              Settings from blueprint.yaml are used, with optional override.
+    # AICODE-NOTE: This function now uses the unified ContextNode architecture.
+    #              It loads blueprints as NodeNetwork instances, enabling
+    #              format-agnostic composition and recursive node structures.
     """
-    from promptic.sdk import blueprints as _blueprint_sdk
-
     # Determine blueprint file path
     blueprint_path: Path | None = None
     if isinstance(blueprint_id_or_path, Path):
@@ -196,71 +196,36 @@ def load_blueprint(
             blueprint_path = path.resolve() if path.is_absolute() else path
         elif "/" in str(blueprint_id_or_path) or path.suffix in {".yaml", ".yml", ".json"}:
             blueprint_path = path
+        else:
+            # Try to find blueprint in default location
+            runtime_settings = settings or ContextEngineSettings()
+            blueprint_root = runtime_settings.blueprint_root.expanduser()
+            if blueprint_root.exists():
+                candidates = [
+                    blueprint_root / f"{blueprint_id_or_path}.yaml",
+                    blueprint_root / f"{blueprint_id_or_path}.yml",
+                    blueprint_root / f"{blueprint_id_or_path}.json",
+                ]
+                for candidate in candidates:
+                    if candidate.exists():
+                        blueprint_path = candidate
+                        break
 
-    # Create settings with auto-detected paths if blueprint path is known
-    runtime_settings = settings or ContextEngineSettings()
-    if blueprint_path and blueprint_path.exists():
-        blueprint_dir = blueprint_path.parent.resolve()
-        # Auto-detect paths relative to blueprint file
-        if not settings or runtime_settings.blueprint_root == Path("blueprints"):
-            runtime_settings.blueprint_root = blueprint_dir
-        if not settings or runtime_settings.instruction_root == Path("instructions"):
-            # Check if instructions directory exists relative to blueprint
-            default_instructions = blueprint_dir / "instructions"
-            if default_instructions.exists():
-                runtime_settings.instruction_root = default_instructions
-            else:
-                runtime_settings.instruction_root = blueprint_dir
+    if not blueprint_path or not blueprint_path.exists():
+        raise FileNotFoundError(f"Blueprint not found: {blueprint_id_or_path}")
 
-    runtime_settings.ensure_directories()
-    builder = _blueprint_sdk._build_builder(runtime_settings)
+    # Create network config from settings if provided
+    config = None
+    if settings:
+        config = NetworkConfig(
+            max_depth=settings.size_budget.max_step_depth or 10,
+            token_model="gpt-4",  # Default token model
+        )
 
-    # Load blueprint
-    if blueprint_path and blueprint_path.exists():
-        result = builder.load_from_path(blueprint_path)
-    elif blueprint_path:
-        result = builder.load_from_path(blueprint_path)
-    else:
-        # Treat as blueprint_id for auto-discovery
-        result = builder.load(str(blueprint_id_or_path))
+    # Load node network using unified architecture
+    network = load_node_network(blueprint_path, config=config)
 
-    if not result.ok:
-        error = result.error or PrompticError("Failed to load blueprint.")
-        raise error
-
-    blueprint = result.unwrap()
-
-    # Store blueprint source path in metadata for later use
-    if blueprint_path:
-        if blueprint.metadata is None:
-            blueprint.metadata = {}
-        blueprint.metadata["_source_path"] = str(blueprint_path.resolve())
-
-    # Apply settings from blueprint if they exist
-    if blueprint.settings.instruction_root:
-        # Resolve relative to blueprint directory
-        if blueprint_path:
-            blueprint_dir = blueprint_path.parent.resolve()
-            instruction_path = Path(blueprint.settings.instruction_root)
-            if not instruction_path.is_absolute():
-                instruction_path = (blueprint_dir / instruction_path).resolve()
-            runtime_settings.instruction_root = instruction_path
-
-    # Apply adapter defaults from blueprint
-    if blueprint.settings.adapter_defaults:
-        for adapter_key, adapter_config in blueprint.settings.adapter_defaults.items():
-            # Resolve relative paths in adapter config
-            if isinstance(adapter_config, dict) and "path" in adapter_config:
-                path_value = adapter_config["path"]
-                if isinstance(path_value, str) and blueprint_path:
-                    path_obj = Path(path_value)
-                    if not path_obj.is_absolute():
-                        blueprint_dir = blueprint_path.parent.resolve()
-                        path_obj = (blueprint_dir / path_obj).resolve()
-                        adapter_config["path"] = str(path_obj)
-            runtime_settings.adapter_registry.data_defaults[adapter_key] = adapter_config
-
-    return blueprint
+    return network
 
 
 def _create_settings_from_blueprint(
@@ -320,7 +285,7 @@ def _create_settings_from_blueprint(
 
 
 def render_preview(
-    blueprint: ContextBlueprint,
+    blueprint: ContextBlueprint | NodeNetwork,
     *,
     sample_data: Mapping[str, Any] | None = None,
     sample_memory: Mapping[str, Any] | None = None,
@@ -337,6 +302,12 @@ def render_preview(
     from promptic.context.rendering import render_context_preview
     from promptic.pipeline.previewer import ContextPreviewer
     from promptic.sdk import blueprints as _blueprint_sdk
+
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        from promptic.blueprints.adapters.legacy import network_to_blueprint
+
+        blueprint = network_to_blueprint(blueprint)
 
     runtime_settings = _create_settings_from_blueprint(blueprint, settings)
     runtime_settings.ensure_directories()
@@ -404,7 +375,7 @@ def render_preview(
 
 
 def render_for_llm(
-    blueprint: ContextBlueprint,
+    blueprint: ContextBlueprint | NodeNetwork,
     *,
     sample_data: Mapping[str, Any] | None = None,
     sample_memory: Mapping[str, Any] | None = None,
@@ -423,6 +394,12 @@ def render_for_llm(
     from promptic.context.rendering import render_context_for_llm
     from promptic.pipeline.previewer import ContextPreviewer
     from promptic.sdk import blueprints as _blueprint_sdk
+
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        from promptic.blueprints.adapters.legacy import network_to_blueprint
+
+        blueprint = network_to_blueprint(blueprint)
 
     runtime_settings = _create_settings_from_blueprint(blueprint, settings)
     runtime_settings.ensure_directories()
@@ -571,6 +548,27 @@ def _iter_all_steps(steps: list[BlueprintStep]) -> Iterator[BlueprintStep]:
     for step in steps:
         yield step
         yield from _iter_all_steps(step.children)
+
+
+def _extract_blueprint_data_from_network(network: NodeNetwork) -> dict[str, Any]:
+    """Extract blueprint structure from NodeNetwork root content.
+
+    # AICODE-NOTE: This helper function extracts the blueprint structure
+    #              (steps, global_instructions, data_slots, memory_slots, etc.)
+    #              from a NodeNetwork's root node content. This enables migration
+    #              from ContextBlueprint to NodeNetwork while maintaining compatibility
+    #              with existing code that expects blueprint structure.
+    """
+    content = network.root.content
+    return {
+        "steps": content.get("steps", []),
+        "global_instructions": content.get("global_instructions", []),
+        "data_slots": content.get("data_slots", []),
+        "memory_slots": content.get("memory_slots", []),
+        "prompt_template": content.get("prompt_template", ""),
+        "name": content.get("name", ""),
+        "metadata": network.root.metadata,
+    }
 
 
 __all__ = [

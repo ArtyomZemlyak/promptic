@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Mapping, Sequence
 from uuid import uuid4
 
+from promptic.blueprints.adapters.legacy import network_to_blueprint
 from promptic.blueprints.models import (
     BlueprintStep,
     ContextBlueprint,
@@ -13,6 +14,7 @@ from promptic.blueprints.models import (
     InstructionNodeRef,
 )
 from promptic.context.errors import OperationResult, PrompticError
+from promptic.context.nodes.models import NodeNetwork
 from promptic.pipeline.builder import BlueprintBuilder
 from promptic.pipeline.context_materializer import ContextMaterializer
 from promptic.pipeline.hooks import PipelineHooks
@@ -70,8 +72,23 @@ class PipelineExecutor:
         if not blueprint_result.ok:
             error = self._ensure_error(blueprint_result.error, "Blueprint load failed.")
             return OperationResult.failure(error, warnings=blueprint_result.warnings)
-        blueprint = blueprint_result.unwrap()
+        loaded = blueprint_result.unwrap()
         aggregate_warnings.extend(blueprint_result.warnings)
+
+        # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+        # AICODE-NOTE: This is a temporary adapter during migration. Once all code is
+        #              migrated to work with NodeNetwork directly, this conversion will be removed.
+        # Handle both NodeNetwork (from real builder) and ContextBlueprint (from test stubs)
+        if isinstance(loaded, NodeNetwork):
+            blueprint = network_to_blueprint(loaded)
+        elif isinstance(loaded, ContextBlueprint):
+            blueprint = loaded
+        else:
+            error = self._ensure_error(
+                PrompticError(f"Unexpected blueprint type: {type(loaded)}"),
+                "Blueprint load returned unexpected type.",
+            )
+            return OperationResult.failure(error, warnings=aggregate_warnings)
 
         self._logger.events.clear()
         self._logger.blueprint_id = str(blueprint.id)

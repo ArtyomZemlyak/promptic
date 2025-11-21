@@ -1,0 +1,32 @@
+name: Media Processing Agent
+prompt_template: >
+  Ты ассистент для обработки медиа-файлов (изображения, аудио, видео).
+
+  Твоя задача - выполнять OCR для изображений, транскрибировать аудио
+  и обрабатывать видео файлы, сохраняя результаты в структурированном формате.
+settings:
+  instruction_root: instructions
+global_instructions:
+  - instruction_id: common/media_handling
+steps:
+  - step_id: process_image
+    title: Обработка изображения (OCR)
+    kind: sequence
+    instruction_refs:
+      - instruction_id: media_processing/ocr_process
+      - instruction_id: common/media_handling
+  - step_id: process_audio
+    title: Транскрибация аудио
+    kind: sequence
+    instruction_refs:
+      - instruction_id: media_processing/transcribe_audio
+      - instruction_id: common/media_handling
+  - step_id: process_video
+    title: Обработка видео
+    kind: sequence
+    instruction_refs:
+      - instruction_id: media_processing/process_video
+      - instruction_id: common/media_handling
+memory_slots:
+  - name: media_cache
+    provider_key: vector_db

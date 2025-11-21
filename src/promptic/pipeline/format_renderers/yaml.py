@@ -9,8 +9,10 @@ try:
 except ImportError:
     import re as regex
 
+from promptic.blueprints.adapters.legacy import node_to_instruction
 from promptic.blueprints.models import InstructionNode
 from promptic.context.errors import TemplateRenderError
+from promptic.context.nodes.models import ContextNode
 from promptic.context.template_context import InstructionRenderContext
 from promptic.pipeline.format_renderers.base import FormatRenderer
 
@@ -24,7 +26,11 @@ class YamlFormatRenderer(FormatRenderer):
     """
 
     def render(self, content: str, context: InstructionRenderContext, **kwargs: Any) -> str:
-        node: InstructionNode | None = kwargs.get("instruction_node")
+        node: InstructionNode | ContextNode | None = kwargs.get("instruction_node")
+
+        # Convert ContextNode to InstructionNode for compatibility during migration
+        if isinstance(node, ContextNode):
+            node = node_to_instruction(node)
 
         if not node or not node.pattern:
             # Default pattern: {{ placeholder }}

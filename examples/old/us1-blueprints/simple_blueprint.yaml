@@ -1,0 +1,19 @@
+name: Simple Research Flow
+prompt_template: >
+  You are a structured research assistant. Your task is to analyze sources
+  and produce a comprehensive summary.
+settings:
+  instruction_root: instructions
+global_instructions:
+  - instruction_id: root_guidance
+steps:
+  - step_id: collect
+    title: Collect Sources
+    kind: sequence
+    instruction_refs:
+      - instruction_id: collect_step
+  - step_id: summarize
+    title: Summarize Source
+    kind: sequence
+    instruction_refs:
+      - instruction_id: summarize_step

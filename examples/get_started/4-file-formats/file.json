@@ -1,0 +1,7 @@
+{
+  "title": "JSON File",
+  "content": "This is a JSON file.",
+  "include": {
+    "$ref": "file.jinja2"
+  }
+}

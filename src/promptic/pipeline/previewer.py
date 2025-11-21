@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from promptic.blueprints.adapters.legacy import network_to_blueprint
 from promptic.blueprints.models import (
     BlueprintStep,
     ContextBlueprint,
@@ -12,6 +13,7 @@ from promptic.blueprints.models import (
     PromptHierarchyBlueprint,
 )
 from promptic.context.errors import OperationResult, PrompticError, TemplateRenderError
+from promptic.context.nodes.models import NodeNetwork
 from promptic.context.rendering import render_context_preview
 from promptic.context.template_context import InstructionRenderContext, build_instruction_context
 from promptic.pipeline.builder import BlueprintBuilder
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PreviewArtifact:
-    blueprint: ContextBlueprint
+    blueprint: ContextBlueprint | NodeNetwork  # Support both during migration
     rendered_context: str
     instruction_ids: list[str] = field(default_factory=list)
     fallback_events: list[FallbackEvent] = field(default_factory=list)
@@ -65,8 +67,13 @@ class ContextPreviewer:
         if not blueprint_result.ok:
             error = self._ensure_error(blueprint_result.error, "Blueprint load failed.")
             return OperationResult.failure(error, warnings=blueprint_result.warnings)
-        blueprint = blueprint_result.unwrap()
+        network = blueprint_result.unwrap()
         aggregate_warnings.extend(blueprint_result.warnings)
+
+        # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+        # AICODE-NOTE: This is a temporary adapter during migration. Once all code is
+        #              migrated to work with NodeNetwork directly, this conversion will be removed.
+        blueprint = network_to_blueprint(network)
 
         warm_result = self._materializer.prefetch_instructions(blueprint)
         aggregate_warnings.extend(warm_result.warnings)
@@ -171,7 +178,7 @@ class ContextPreviewer:
             )
 
         artifact = PreviewArtifact(
-            blueprint=blueprint,
+            blueprint=network,  # Store NodeNetwork for future use
             rendered_context=render_result.text,
             instruction_ids=instruction_ids,
             fallback_events=fallback_events,
@@ -245,6 +252,7 @@ class ContextPreviewer:
             return OperationResult.failure(error, warnings=aggregate_warnings)
 
         fallback_events.extend(self._materializer.consume_fallback_events())
+        # Store the original blueprint (ContextBlueprint) for compatibility
         artifact = PreviewArtifact(
             blueprint=blueprint,
             rendered_context="",

@@ -3,8 +3,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Dict, Optional
 
+from promptic.blueprints.adapters.legacy import node_to_instruction
 from promptic.blueprints.models import InstructionFallbackPolicy, InstructionNode
 from promptic.context.errors import TemplateRenderError
+from promptic.context.nodes.models import ContextNode
 from promptic.context.template_context import InstructionRenderContext
 from promptic.pipeline.format_renderers.base import FormatRenderer
 
@@ -104,7 +106,7 @@ class TemplateRenderer:
 
     def render(
         self,
-        instruction_node: InstructionNode,
+        instruction_node: InstructionNode | ContextNode,
         content: str,
         context: InstructionRenderContext,
     ) -> str:
@@ -112,7 +114,7 @@ class TemplateRenderer:
         Renders instruction content using the appropriate format renderer.
 
         Args:
-            instruction_node: The instruction metadata containing format info
+            instruction_node: The instruction metadata containing format info (InstructionNode or ContextNode)
             content: The raw instruction content to render
             context: The template context containing data/memory/step info
 
@@ -122,6 +124,12 @@ class TemplateRenderer:
         Raises:
             TemplateRenderError: If rendering fails or format is unsupported
         """
+        # Convert ContextNode to InstructionNode for compatibility during migration
+        # AICODE-NOTE: This is a temporary adapter during migration. Once all code is
+        #              migrated to work with ContextNode directly, this conversion will be removed.
+        if isinstance(instruction_node, ContextNode):
+            instruction_node = node_to_instruction(instruction_node)
+
         format_key = instruction_node.format
         renderer = self._renderers.get(format_key)
 
@@ -168,8 +176,11 @@ class TemplateRenderer:
             return self._handle_render_error(instruction_node, wrapped)
 
     def _handle_render_error(
-        self, instruction_node: InstructionNode, error: TemplateRenderError
+        self, instruction_node: InstructionNode | ContextNode, error: TemplateRenderError
     ) -> str:
+        # Convert ContextNode to InstructionNode for compatibility during migration
+        if isinstance(instruction_node, ContextNode):
+            instruction_node = node_to_instruction(instruction_node)
         policy = instruction_node.fallback_policy or InstructionFallbackPolicy.ERROR
 
         if policy == InstructionFallbackPolicy.ERROR:

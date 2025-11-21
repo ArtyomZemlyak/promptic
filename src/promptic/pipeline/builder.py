@@ -3,26 +3,34 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from pydantic import ValidationError
-
-from promptic.blueprints.models import ContextBlueprint
-from promptic.blueprints.serialization import load_blueprint
-from promptic.context.errors import BlueprintLoadError, BlueprintValidationError, OperationResult
-from promptic.pipeline.validation import BlueprintValidator
+from promptic.context.errors import BlueprintLoadError, OperationResult
+from promptic.context.nodes.errors import (
+    NodeNetworkDepthExceededError,
+    NodeNetworkValidationError,
+    NodeReferenceNotFoundError,
+    NodeResourceLimitExceededError,
+)
+from promptic.context.nodes.models import NetworkConfig, NodeNetwork
+from promptic.pipeline.network.builder import NodeNetworkBuilder
 from promptic.settings.base import ContextEngineSettings
 
 
 class BlueprintBuilder:
-    """Loads and validates blueprints stored on disk."""
+    """Loads and validates blueprints stored on disk using unified node network architecture.
+
+    # AICODE-NOTE: This class has been migrated to use NodeNetworkBuilder instead of
+    #              ContextBlueprint. It now loads blueprints as NodeNetwork instances
+    #              using the unified context node architecture.
+    """
 
     def __init__(
         self,
         *,
         settings: ContextEngineSettings,
-        validator: BlueprintValidator,
+        validator: None = None,  # Validator no longer needed, validation handled by NodeNetworkBuilder
     ) -> None:
         self.settings = settings
-        self._validator = validator
+        self._network_builder = NodeNetworkBuilder()
 
     def list_blueprints(self) -> Sequence[str]:
         root = self.settings.blueprint_root.expanduser()
@@ -30,12 +38,19 @@ class BlueprintBuilder:
             return tuple()
         results: set[str] = set()
         for path in root.rglob("*"):
-            if path.is_file() and path.suffix in {".yaml", ".yml", ".json"}:
+            if path.is_file() and path.suffix in {
+                ".yaml",
+                ".yml",
+                ".json",
+                ".md",
+                ".jinja",
+                ".jinja2",
+            }:
                 relative = path.relative_to(root)
                 results.add(relative.with_suffix("").as_posix())
         return tuple(sorted(results))
 
-    def load(self, blueprint_id: str) -> OperationResult[ContextBlueprint]:
+    def load(self, blueprint_id: str) -> OperationResult[NodeNetwork]:
         try:
             path = self._resolve_path(blueprint_id)
         except FileNotFoundError as exc:
@@ -44,24 +59,26 @@ class BlueprintBuilder:
             )
         return self.load_from_path(path)
 
-    def load_from_path(self, path: Path | str) -> OperationResult[ContextBlueprint]:
+    def load_from_path(
+        self, path: Path | str, config: NetworkConfig | None = None
+    ) -> OperationResult[NodeNetwork]:
         target = Path(path)
         if not target.exists():
             return OperationResult.failure(
                 BlueprintLoadError(f"Blueprint file '{target}' does not exist."),
             )
         try:
-            blueprint = load_blueprint(target)
-        except ValidationError as exc:
-            return OperationResult.failure(BlueprintValidationError(str(exc)))
-        except Exception as exc:  # pragma: no cover - yaml edge cases
+            network = self._network_builder.build_network(target, config)
+            return OperationResult.success(network)
+        except (
+            NodeNetworkValidationError,
+            NodeNetworkDepthExceededError,
+            NodeReferenceNotFoundError,
+            NodeResourceLimitExceededError,
+        ) as exc:
             return OperationResult.failure(BlueprintLoadError(str(exc)))
-        validation = self._validator.validate(blueprint)
-        if not validation.ok:
-            error = validation.error or BlueprintValidationError("Blueprint validation failed.")
-            return OperationResult.failure(error, warnings=validation.warnings)
-        validated = validation.unwrap()
-        return OperationResult.success(validated, warnings=validation.warnings)
+        except Exception as exc:  # pragma: no cover - edge cases
+            return OperationResult.failure(BlueprintLoadError(str(exc)))
 
     def _resolve_path(self, blueprint_id: str) -> Path:
         root = self.settings.blueprint_root.expanduser()

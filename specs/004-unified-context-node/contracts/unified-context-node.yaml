@@ -1,0 +1,381 @@
+openapi: 3.0.1
+info:
+  title: Unified Context Node API
+  version: 0.1.0
+  description: >
+    Reference contract for the Unified Context Node Architecture.
+    Defines the API surface for loading, building, and rendering node networks
+    with multi-format support (YAML, Jinja2, Markdown, JSON).
+servers:
+  - url: https://api.promptic.local/nodes/v1
+paths:
+  /networks:
+    post:
+      summary: Build a node network from a root node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkBuildRequest'
+      responses:
+        "200":
+          description: Network built successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeNetwork'
+        "400":
+          description: Validation error (missing references, cycles, depth exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        "413":
+          description: Resource limit exceeded (size, tokens, network size)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceLimitError'
+  /networks/{network_id}:
+    get:
+      summary: Retrieve a node network by ID
+      parameters:
+        - in: path
+          name: network_id
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Network found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeNetwork'
+        "404":
+          description: Network not found
+  /networks/{network_id}/render:
+    post:
+      summary: Render a node network to a target format
+      parameters:
+        - in: path
+          name: network_id
+          schema:
+            type: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        "200":
+          description: Network rendered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResponse'
+        "400":
+          description: Validation error
+  /nodes:
+    post:
+      summary: Create a new node (in-memory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextNode'
+      responses:
+        "201":
+          description: Node created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextNode'
+        "400":
+          description: Validation error
+  /nodes/{node_id}:
+    get:
+      summary: Retrieve a node by ID
+      parameters:
+        - in: path
+          name: node_id
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Node found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextNode'
+        "404":
+          description: Node not found
+  /format-parsers:
+    get:
+      summary: List registered format parsers
+      responses:
+        "200":
+          description: List of registered parsers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormatParserInfo'
+  /format-parsers/{format_name}:
+    post:
+      summary: Register a custom format parser
+      parameters:
+        - in: path
+          name: format_name
+          schema:
+            type: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormatParserRegistration'
+      responses:
+        "201":
+          description: Parser registered
+        "400":
+          description: Validation error
+  /legacy/blueprints/{blueprint_id}/to-network:
+    post:
+      summary: Convert a legacy blueprint to a node network
+      parameters:
+        - in: path
+          name: blueprint_id
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Blueprint converted to network
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeNetwork'
+        "404":
+          description: Blueprint not found
+  /legacy/networks/{network_id}/to-blueprint:
+    post:
+      summary: Convert a node network to a legacy blueprint (if possible)
+      parameters:
+        - in: path
+          name: network_id
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Network converted to blueprint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyBlueprint'
+        "400":
+          description: Conversion not possible
+components:
+  schemas:
+    ContextNode:
+      type: object
+      required: [id, content, format]
+      properties:
+        id:
+          type: string
+          description: Node identifier (file path for filesystem nodes, UUID for in-memory nodes)
+        content:
+          type: object
+          description: Format-agnostic content stored as JSON
+          additionalProperties: true
+        format:
+          type: string
+          enum: [yaml, jinja2, markdown, json]
+          description: Source format of the node
+        semantic_type:
+          type: string
+          enum: [blueprint, instruction, data, memory]
+          nullable: true
+          description: Optional semantic label (metadata only)
+        version:
+          type: string
+          nullable: true
+          description: Version field reserved for future use
+        references:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeReference'
+          description: References to other nodes
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextNode'
+          description: Child nodes (loaded lazily)
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+    NodeReference:
+      type: object
+      required: [path, type]
+      properties:
+        path:
+          type: string
+          description: Reference path (file path or node ID)
+        type:
+          type: string
+          enum: [file, id, uri]
+          description: Reference type
+        label:
+          type: string
+          nullable: true
+          description: Optional label for display
+    NodeNetwork:
+      type: object
+      required: [root, nodes]
+      properties:
+        root:
+          $ref: '#/components/schemas/ContextNode'
+        nodes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ContextNode'
+          description: All nodes in the network by ID
+        total_size:
+          type: integer
+          description: Total size of all nodes in bytes
+        total_tokens:
+          type: integer
+          description: Total tokens for all nodes (for specified model)
+        depth:
+          type: integer
+          description: Maximum depth of the network
+    NetworkBuildRequest:
+      type: object
+      required: [root_path]
+      properties:
+        root_path:
+          type: string
+          description: Path to root node file
+        config:
+          $ref: '#/components/schemas/NetworkConfig'
+    NetworkConfig:
+      type: object
+      properties:
+        max_depth:
+          type: integer
+          default: 10
+          description: Maximum depth limit
+        max_node_size:
+          type: integer
+          default: 10485760
+          description: Maximum size per node in bytes (default 10MB)
+        max_network_size:
+          type: integer
+          default: 1000
+          description: Maximum number of nodes
+        max_tokens_per_node:
+          type: integer
+          nullable: true
+          description: Maximum tokens per node
+        max_tokens_per_network:
+          type: integer
+          nullable: true
+          description: Maximum tokens for entire network
+        token_model:
+          type: string
+          default: gpt-4
+          description: Model for token counting
+    RenderRequest:
+      type: object
+      required: [target_format]
+      properties:
+        target_format:
+          type: string
+          enum: [yaml, jinja2, markdown, json, file_first]
+          description: Target format for rendering
+    RenderResponse:
+      type: object
+      required: [content, format]
+      properties:
+        content:
+          type: string
+          description: Rendered content
+        format:
+          type: string
+          description: Target format
+        tokens:
+          type: integer
+          description: Token count for rendered content
+    FormatParserInfo:
+      type: object
+      required: [format_name, extensions]
+      properties:
+        format_name:
+          type: string
+          description: Format name
+        extensions:
+          type: array
+          items:
+            type: string
+          description: Supported file extensions
+    FormatParserRegistration:
+      type: object
+      required: [format_name, extensions]
+      properties:
+        format_name:
+          type: string
+          description: Format name
+        extensions:
+          type: array
+          items:
+            type: string
+          description: Supported file extensions
+        parser_class:
+          type: string
+          description: Parser class name (for plugin registration)
+    ValidationError:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum: [circular_reference, depth_exceeded, missing_reference, invalid_path]
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details (e.g., cycle path)
+    ResourceLimitError:
+      type: object
+      required: [error, message, limit_type, current_value, max_value]
+      properties:
+        error:
+          type: string
+          enum: [node_size_exceeded, network_size_exceeded, tokens_per_node_exceeded, tokens_per_network_exceeded]
+        message:
+          type: string
+          description: Human-readable error message
+        limit_type:
+          type: string
+          description: Type of limit that was exceeded
+        current_value:
+          type: integer
+          description: Current value that exceeded the limit
+        max_value:
+          type: integer
+          description: Maximum allowed value
+    LegacyBlueprint:
+      type: object
+      description: Legacy ContextBlueprint schema (reference to existing contract)
+      $ref: '../001-context-engine/contracts/context-engineering.yaml#/components/schemas/ContextBlueprint'

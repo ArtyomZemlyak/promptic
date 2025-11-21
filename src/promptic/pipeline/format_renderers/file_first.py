@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Sequence
 
+from promptic.blueprints.adapters.legacy import node_to_instruction
 from promptic.blueprints.models import (
     BlueprintStep,
     ContextBlueprint,
@@ -21,6 +22,7 @@ from promptic.blueprints.serialization import (
     get_file_first_metadata,
 )
 from promptic.context.errors import InstructionNotFoundError, TemplateRenderError
+from promptic.context.nodes.models import ContextNode
 from promptic.instructions.store import MemoryDescriptorCollector
 from promptic.pipeline.context_materializer import ContextMaterializer
 
@@ -105,7 +107,11 @@ class FileSummaryService:
             return " ".join(tokens).strip()
         return " ".join(tokens[: self._max_tokens]).strip() + "..."
 
-    def _relative_path(self, node: InstructionNode) -> str:
+    def _relative_path(self, node: InstructionNode | ContextNode) -> str:
+        # Convert ContextNode to InstructionNode for compatibility during migration
+        if isinstance(node, ContextNode):
+            node = node_to_instruction(node)
+
         source = Path(str(node.source_uri)).resolve()
         try:
             relative = source.relative_to(self._instruction_root.resolve())

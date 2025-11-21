@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from promptic.blueprints.models import BlueprintStep, ContextBlueprint
+    from promptic.context.nodes.models import NodeNetwork
+else:
+    from promptic.blueprints.models import ContextBlueprint
 
 
 @dataclass
@@ -41,7 +44,7 @@ class InstructionRenderContext:
 
 
 def build_instruction_context(
-    blueprint: ContextBlueprint,
+    blueprint: "ContextBlueprint | NodeNetwork",
     data: Dict[str, Any],
     memory: Dict[str, Any],
     step_id: Optional[str] = None,
@@ -50,7 +53,17 @@ def build_instruction_context(
     """
     Constructs an InstructionRenderContext from blueprint, data slots, memory slots,
     and step information.
+
+    # AICODE-NOTE: This function accepts both ContextBlueprint and NodeNetwork during
+    #              migration. If NodeNetwork is provided, it converts to ContextBlueprint
+    #              using the legacy adapter.
     """
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        from promptic.blueprints.adapters.legacy import network_to_blueprint
+
+        blueprint = network_to_blueprint(blueprint)
+
     step_context: Optional[StepContext] = None
 
     if step_id:

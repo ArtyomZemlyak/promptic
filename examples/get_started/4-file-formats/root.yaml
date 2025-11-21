@@ -1,0 +1,4 @@
+title: Root YAML File
+content: This is the root file in YAML format.
+include:
+  $ref: file.json

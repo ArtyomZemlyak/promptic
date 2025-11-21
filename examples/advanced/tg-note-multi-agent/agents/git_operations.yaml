@@ -1,0 +1,32 @@
+name: Git Operations Agent
+prompt_template: >
+  Ты ассистент для работы с Git и GitHub.
+
+  Твоя задача - выполнять Git операции: коммиты, пуши, создание PR,
+  управление ветками и синхронизация с GitHub knowledge base.
+settings:
+  instruction_root: instructions
+global_instructions:
+  - instruction_id: common/git_workflow
+steps:
+  - step_id: commit_changes
+    title: Коммит изменений
+    kind: sequence
+    instruction_refs:
+      - instruction_id: git_operations/commit_changes
+      - instruction_id: common/git_workflow
+  - step_id: push_to_github
+    title: Пуш в GitHub
+    kind: sequence
+    instruction_refs:
+      - instruction_id: git_operations/push_to_github
+      - instruction_id: common/git_workflow
+  - step_id: create_pr
+    title: Создание Pull Request
+    kind: sequence
+    instruction_refs:
+      - instruction_id: git_operations/create_pr
+      - instruction_id: common/git_workflow
+memory_slots:
+  - name: git_history
+    provider_key: vector_db

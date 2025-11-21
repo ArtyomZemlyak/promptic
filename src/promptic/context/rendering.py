@@ -14,7 +14,9 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from promptic.blueprints.adapters.legacy import network_to_blueprint
 from promptic.blueprints.models import BlueprintStep, ContextBlueprint
+from promptic.context.nodes.models import NodeNetwork
 
 _PLACEHOLDER_PATTERN = re.compile(r"(\{\{[^{}]+\}\})")
 
@@ -27,7 +29,7 @@ class RenderResult:
 
 def render_context_preview(
     *,
-    blueprint: ContextBlueprint,
+    blueprint: ContextBlueprint | NodeNetwork,
     template_context: Mapping[str, Any],
     global_instructions: Sequence[str],
     step_instructions: Mapping[str, Sequence[str]],
@@ -38,9 +40,18 @@ def render_context_preview(
     """Render a human-friendly preview leveraging rich formatting.
 
     Args:
+        blueprint: ContextBlueprint or NodeNetwork (converted during migration)
+        template_context: Template variables for rendering
+        global_instructions: Global instruction texts
+        step_instructions: Step instruction texts by step_id
+        data_preview: Data preview values
+        memory_preview: Memory preview values
         print_to_console: If True (default), output formatted preview to console.
                           If False, only return plain text without console output.
     """
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        blueprint = network_to_blueprint(blueprint)
 
     prompt_text, prompt_warnings = _render_prompt(blueprint, template_context)
     # AICODE-NOTE: If print_to_console=True, output directly to console to preserve Rich formatting
@@ -159,8 +170,11 @@ def render_context_preview(
 
 
 def _render_prompt(
-    blueprint: ContextBlueprint, context: Mapping[str, Any]
+    blueprint: ContextBlueprint | NodeNetwork, context: Mapping[str, Any]
 ) -> tuple[str, list[str]]:
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        blueprint = network_to_blueprint(blueprint)
     env = Environment(autoescape=False, undefined=StrictUndefined)
     warnings: list[str] = []
     try:
@@ -216,7 +230,7 @@ def _iter_steps(steps: Sequence[BlueprintStep]) -> Sequence[BlueprintStep]:
 
 def render_context_for_llm(
     *,
-    blueprint: ContextBlueprint,
+    blueprint: ContextBlueprint | NodeNetwork,
     template_context: Mapping[str, Any],
     global_instructions: Sequence[str],
     step_instructions: Mapping[str, Sequence[str]],
@@ -226,6 +240,10 @@ def render_context_for_llm(
     # AICODE-NOTE: This function produces clean, plain text output suitable
     #              for direct LLM consumption, without any formatting artifacts.
     """
+    # Convert NodeNetwork to ContextBlueprint for compatibility during migration
+    if not isinstance(blueprint, ContextBlueprint):
+        blueprint = network_to_blueprint(blueprint)
+
     parts: list[str] = []
 
     # Render prompt template
