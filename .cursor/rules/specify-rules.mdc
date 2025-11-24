@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-17
 - Filesystem-backed node storage (YAML, Markdown, Jinja2, JSON files) with optional caching; in-memory nodes supported for programmatic creation (004-unified-context-node)
 - Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, existing promptic dependencies (`rich`, `jinja2`, `orjson`), `pytest`, `pytest-asyncio`, `packaging` (for semantic versioning comparison), `structlog` or standard `logging` (for structured logging) (005-prompt-versioning)
 - Filesystem-based version detection and export operations. Version information stored in file naming conventions (postfixes like `_v1.0.0`, `_v1`, `_v1.1`). Export creates directory structures preserving hierarchical layout. No additional storage requirements beyond filesystem. (005-prompt-versioning)
+- Python 3.11 (CPython, per `pyproject.toml`) + `pydantic>=2.6`, `pyyaml>=6.0`, `jinja2>=3.1`, `orjson>=3.9`, `packaging>=23.0` (for versioning), `regex>=2023.10` (for version parsing). Remove: `tiktoken` (token counting), `pydantic-settings` (if only used by settings), `rich` (if only used by blueprint preview). (006-remove-unused-code)
+- Filesystem-based (no database). Node networks loaded from YAML/Markdown/JSON/Jinja2 files. Versioned prompts stored as files with version suffixes. (006-remove-unused-code)
 
 - Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `typer` (CLI), `rich` (logging/preview), `jinja2` (templating), `orjson`, optional adapter extras (e.g., `httpx`, `sqlalchemy`, `faiss-cpu`) (001-context-engine)
 
@@ -30,9 +32,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11 (CPython): Follow standard conventions
 
 ## Recent Changes
+- 006-remove-unused-code: Added Python 3.11 (CPython, per `pyproject.toml`) + `pydantic>=2.6`, `pyyaml>=6.0`, `jinja2>=3.1`, `orjson>=3.9`, `packaging>=23.0` (for versioning), `regex>=2023.10` (for version parsing). Remove: `tiktoken` (token counting), `pydantic-settings` (if only used by settings), `rich` (if only used by blueprint preview).
 - 005-prompt-versioning: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, existing promptic dependencies (`rich`, `jinja2`, `orjson`), `pytest`, `pytest-asyncio`, `packaging` (for semantic versioning comparison), `structlog` or standard `logging` (for structured logging)
 - 004-unified-context-node: Added Python 3.11 (CPython) + `pydantic>=2`, `pydantic-settings`, `jinja2` (templating), `pyyaml>=6.0` (YAML parsing), `orjson` (JSON serialization), `tiktoken` (token counting), `rich` (preview rendering), `pytest`, `pytest-asyncio`, `hypothesis` (property-based testing)
-- 003-file-first-prompts: Added Python ≥3.11 (per `pyproject.toml`) + Promptic core modules (pydantic, jinja2, rich, orjson, yaml) plus filesystem I/O
 
 
 <!-- MANUAL ADDITIONS START -->

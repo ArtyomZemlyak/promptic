@@ -1,98 +1,190 @@
 # promptic
-Easy prompt management for python projects
 
-## Concept
+Easy prompt management for Python projects using file-first architecture and versioning.
 
-Я все думаю над концептом библиотеки. На сколько она вообще нужна и что должна делать.
+## Overview
 
-Изначальные потребности следующие:
-- Контекст моделей не безграничный, нужно уметь помещать в него только нужное
-- Агенты часто закрытые системы, на которые не повлиять (если это только не собственная разработка), нужно какое-то универсальное решение
-- Нужно версионирование промптов
+**promptic** is a Python library for managing prompts and context using a file-first approach. It focuses on two core features:
 
-Альтернативы библиотеки:
-- Использование несколько вызовов в агента под каждый контекст. Минус: меньше гибкости самого агента
-- Использование FC или MCP, агент получает короткую инструкцию, инструменты и может делать что хочет далее. Минус: излишнее кол-во тулзов, необходимость их разворота и поддержки
+1. **Node Networks**: Load and render hierarchical file structures with references
+2. **Versioning**: Manage and export versioned prompts with semantic versioning
 
-Концептуальные мысли:
-- Все делаем через файлы (контекст, промпт, память, задачи и тд)
-- Агент читает только то что нужно в моменте, остальное удаляет из контекста (сам или алгоритмически)
+## Installation
 
-Проблемы:
-- Многие агенты сами как-то менеджерят контекст свой. И даже если агет читает файлы последовательно под задачи, то его контекст все равно будет наполняться содержимым этих файлов. А очищение может наступить только при переполнении. То есть, либа поможет, но только частично.
-- Многие агенты это закрытые ящики и python либа для них будет бесполезна. Но, можно пойти следующим путем: задача для агента ставится какой-то системой, которая как раз может использовать python (тут все ок); если же python никак не применим, то формат после render_for_llm промтпов итоговый должен быть легко понятен агентам (И тут можно в теории самим промпт заполнять или с помощью нашей либы).
-
-Нюансы относительно текущего использования:
-- То что у нас много вариантов формирования итогового контекста это интересно, пока оставим (но не факт что в итоге нам это нужно будет).
-- Нужно нацелиться именно на уменьшение контекста подаваемого в ЛЛМ в агента исходным промптом, если смотреть на render_for_llm, то там так сейчас не работает, там просто рендерится весь промпт полностью.
-
-Нужно чтобы библиотека умела делать что-то такое:
-Все файлы такие как есть сейчас - это хорошо.
-Далее в LLM передается только ключевой промпт, ключевая инструкция, список шагов и уточнения какие-нибудь.
-И плюсом где нужно указывается, что вот там смотри подробнее. То есть мы идем file-first промптинг или как-то так.
-В итоге это может выглядеть вот так (образный пример основного промпта и инструкций):
-
-```md
-Ты ассистент. Инструкции:
-- Ты умный
-- Ты крутой
-- Не пиши глупости
-
-Тебе нужно сделать:
-1. Подумать (подробнее - instructions/think.md)
-2. Написать промежуточные выводы (подробнее - instructions/semi.md)
-3. Написать итоговый вывод (подробнее - instructions/total.md)
-4. Добавить медиа (подробнее - instructions/media.md)
-
-Если нужно что-то запоминать пиши сюда: memory (формат: такой-то там)
-```
-И допустим какой-нибудь instructions/media.md файл:
-
-```md
-Список медиа:
-1
-2
-3
-4
-...
-
-Если хочешь узнать подробности, OCR или транскрипцию конкретного медиа, то заменяй файловое расширение в названии файла медиа на .md и читай этот файл.
+```bash
+pip install -e .
 ```
 
-То есть, вот она иерархичность, которую я подразумевал изначально - иерархичность промпта, контекста, памяти через файлы.
-Поэтому нужно делать 003 фичу с переформатированием / дополнением нашей библиотеки.
+## Quick Start
 
+### Node Networks
 
-Разные форматы для blueprint:
-- yaml (сейчас везде в примерах)
-- jinja2
-- md
-- json
-Нужно уметь поддерживать разные форматы, и все они парсятся в json (вроде у нас такой должен быть внутри в коде)
-И сделать все рекурсивным. То есть, у нас есть аля ContextNode, которая содержит в себе либо blueprint, либо yaml, либо md, либо jinja2, либо json. Ну или какие-то другие форматы далее.
-Тогда мы можем Абстрагироваться от понятий инструкция, данные, память и все такое. В итоге базовой структурой будет ContextNode и структура из нее в виде сети (про рекурсивность сети пока не понятно).
-В итоге мы можем все это комбинировать и каждая нода может быть чем угодно.  
+Load interconnected files and render them in various formats:
 
+```python
+from promptic.sdk.nodes import load_node_network, render_node_network
+from pathlib import Path
 
-Версионирование
-Регистр промптов
-Получение конкретного промпта (last версия, конкретная версия)
+# Load a node network from a root file
+network = load_node_network(Path("prompts/root.md"))
 
+# Render to markdown (or yaml, json)
+output = render_node_network(
+    network,
+    target_format="markdown",
+    render_mode="full",
+)
+print(output)
+```
 
-Итоговая польза для tg-note:
-- Легче сортировать промпты (сейчас немного путаюсь что куда закинуть)
-- Подгрузка промптов за одну строку кода (сейчас если нужно внедрить что-то во все агенты, то это изменение кода в каждом агенте)
-- Версионирование из коробки
-Какая еще польза может быть?
-- Мне хочется какой-то пользы от самой либы в плане конструирования связей или чего-то такого, какие-то маленькие вещи, но которые упрощают работу с промптами
-- Может быть сделать функционал по разбиению одного промпта на несколько
-- И чего-то для контекста и памяти
-- Плюс учитывать ограничения контекста и как-то динамически что-то выкидывать
-- И еще чего-то
-- Можно смотреть на потребности других проектов и выписывать что нужно
+### Versioning
 
-- кейс tg-note, что нужно вставлять ссылки на .md OCR файлы (то бишь это динамика какая-то)
+Load and export specific versions of your prompts:
 
-- Параметры генерации
-- Модель, api
--
+```python
+from promptic import load_prompt, export_version
+from pathlib import Path
+
+# Load a specific version
+prompt = load_prompt(
+    prompts_dir=Path("prompts"),
+    version="v1.0.0"  # or "latest"
+)
+
+# Export a version (removes version suffixes)
+result = export_version(
+    source_path=Path("prompts"),
+    version_spec="v1.0.0",
+    target_dir=Path("exported/v1"),
+    overwrite=True
+)
+```
+
+## Features
+
+### File-First Architecture
+
+Organize your prompts as interconnected files in any supported format:
+- **YAML**: Structured data with references
+- **Markdown**: Human-readable documentation
+- **JSON**: Programmatic access
+- **Jinja2**: Dynamic templating
+
+Files can reference each other, creating hierarchical structures that are easy to navigate and maintain.
+
+### Semantic Versioning
+
+Version your prompts using semantic versioning conventions:
+- Files use version suffixes: `prompt_v1.0.0.md`, `prompt_v2.md`
+- Load specific versions or "latest"
+- Export versions with clean filenames (suffixes removed)
+- Preserve directory structures
+
+### Simple API
+
+The library exports just what you need:
+- `load_prompt()` - Load versioned prompts
+- `export_version()` - Export a version to a directory
+- `cleanup_exported_version()` - Clean up exported files
+- `load_node_network()` - Load file networks (from `promptic.sdk.nodes`)
+- `render_node_network()` - Render networks (from `promptic.sdk.nodes`)
+
+## Examples
+
+See the `examples/get_started/` directory for complete examples:
+
+- **003-multiple-files**: Load and render networks with multiple root files
+- **004-file-formats**: Work with different file formats (YAML, Markdown, JSON, Jinja2)
+- **005-versioning**: Load different versions of prompts
+- **006-version-export**: Export versions with directory structure preservation
+
+Run examples:
+
+```bash
+python examples/get_started/3-multiple-files/render.py
+python examples/get_started/4-file-formats/render.py
+python examples/get_started/5-versioning/render.py
+python examples/get_started/6-version-export/export_demo.py
+```
+
+## Development
+
+### Setup
+
+```bash
+# Install dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=promptic --cov-report=html
+```
+
+### Code Quality
+
+```bash
+# Format code
+black --line-length=100 src/ tests/
+isort --profile=black --line-length=100 src/ tests/
+
+# Run pre-commit hooks (MANDATORY before commit)
+pre-commit run --all-files
+```
+
+## Architecture
+
+The library follows Clean Architecture principles:
+
+- **Entities**: `ContextNode`, `NodeNetwork` (domain models)
+- **Use Cases**: Node loading, rendering, version resolution
+- **Interface Adapters**: Format parsers, filesystem resolvers
+
+All dependencies point inward toward the domain layer.
+
+## Documentation
+
+Additional documentation is available in `docs_site/`:
+- Architecture documentation
+- Versioning guide
+- Integration examples
+
+## Requirements
+
+- Python 3.11+
+- Dependencies: `pydantic>=2.6`, `pyyaml>=6.0`, `jinja2>=3.1`, `orjson>=3.9`, `packaging>=23.0`, `regex>=2023.10`
+
+## License
+
+See LICENSE file for details.
+
+## Contributing
+
+This library follows strict code quality standards:
+1. All code must pass `black` and `isort` formatting
+2. All tests must pass (`pytest tests/ -v`)
+3. Pre-commit hooks must pass (`pre-commit run --all-files`)
+4. See `AGENTS.md` for detailed contribution guidelines
+
+## What Changed (v0.7.0)
+
+This version significantly simplifies the library by removing unused features:
+
+**Removed**:
+- Blueprint system (legacy architecture)
+- Adapter system (data/memory adapters)
+- Token counting functionality
+- Settings package
+- Various pipeline modules
+
+**Why**: These features were not used in examples 003-006 and added unnecessary complexity. The library now focuses solely on node networks and versioning, which are the core features actively used.
+
+**Migration**: If you were using blueprints, migrate to node networks (see examples). The node network API is simpler and more flexible.

@@ -18,8 +18,8 @@ from promptic.resolvers.base import NodeReferenceResolver
 from promptic.resolvers.filesystem import FilesystemReferenceResolver
 from promptic.versioning import VersionSpec
 
-if TYPE_CHECKING:
-    from promptic.token_counting.base import TokenCounter
+# AICODE-NOTE: Token counting removed - not used in examples 003-006.
+# Removed import: from promptic.token_counting.base import TokenCounter
 
 
 class NodeNetworkBuilder:
@@ -34,11 +34,14 @@ class NodeNetworkBuilder:
     def __init__(
         self,
         resolver: NodeReferenceResolver | None = None,
-        token_counter: "TokenCounter | None" = None,
     ):
-        """Initialize network builder with optional resolver and token counter.
+        """Initialize network builder with optional resolver.
 
-        The builder uses dependency injection for resolver and token counter to enable
+        # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+        # Removed parameter: token_counter. Network building now focuses on
+        # structure validation (cycles, depth, size) without token tracking.
+
+        The builder uses dependency injection for resolver to enable
         testing and custom resolution strategies. If not provided, defaults are used.
 
         Side Effects:
@@ -49,20 +52,13 @@ class NodeNetworkBuilder:
             resolver: Reference resolver for resolving node references. Must implement
                 NodeReferenceResolver interface. Defaults to FilesystemReferenceResolver
                 which resolves file paths relative to base directories.
-            token_counter: Token counter for calculating network tokens. Must implement
-                TokenCounter interface. If None, token counting is skipped (total_tokens=0).
-                Token counting is performed on final rendered content to accurately
-                reflect LLM context usage.
 
         Example:
             >>> from promptic.resolvers.filesystem import FilesystemReferenceResolver
-            >>> from promptic.token_counting.tiktoken_counter import TiktokenTokenCounter
             >>> resolver = FilesystemReferenceResolver()
-            >>> token_counter = TiktokenTokenCounter()
-            >>> builder = NodeNetworkBuilder(resolver=resolver, token_counter=token_counter)
+            >>> builder = NodeNetworkBuilder(resolver=resolver)
         """
         self.resolver = resolver or FilesystemReferenceResolver()
-        self.token_counter = token_counter
 
     def build_network(
         self,
@@ -72,11 +68,14 @@ class NodeNetworkBuilder:
     ) -> NodeNetwork:
         """Build a node network from a root path with recursive reference resolution.
 
+        # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+        # Network metrics now track only size and depth, not tokens.
+
         This method orchestrates the complete network building process:
         1. Loads the root node using format detection (with version resolution if version provided)
         2. Recursively resolves all references using the configured resolver (with version resolution)
         3. Validates network structure (cycles, depth, resource limits)
-        4. Calculates network metrics (size, tokens, depth)
+        4. Calculates network metrics (size, depth)
         5. Returns a complete NodeNetwork instance
 
         # AICODE-NOTE: Version-aware network building: When version is provided, the builder
@@ -88,7 +87,6 @@ class NodeNetworkBuilder:
         Side Effects:
             - Reads multiple files from filesystem (recursive loading)
             - Uses format parser registry for each node
-            - Performs token counting if token_counter is configured
             - Mutates node.children lists (adds resolved child nodes)
             - No external state mutation (pure except for I/O and node mutation)
 
@@ -97,9 +95,9 @@ class NodeNetworkBuilder:
                 is used to determine the base directory for resolving relative references.
                 If root_path is a directory and version is provided, version resolution
                 is applied to select the appropriate versioned file.
-            config: Network configuration with limits and token model. Defaults to
+            config: Network configuration with limits. Defaults to
                 NetworkConfig() with standard limits (max_depth=10, max_node_size=10MB,
-                max_network_size=1000, token_model="gpt-4").
+                max_network_size=1000).
             version: Optional version specification for version-aware resolution ("latest",
                 "v1", "v1.1", "v1.1.1", or hierarchical dict). If provided, version
                 resolution is applied to both root path and all referenced paths.
@@ -108,7 +106,7 @@ class NodeNetworkBuilder:
             NodeNetwork instance with:
             - All nodes loaded and references resolved
             - Network validated (no cycles, within limits)
-            - Metadata calculated (total_size, total_tokens, depth)
+            - Metadata calculated (total_size, depth)
             - Root node with children populated
 
         Raises:
@@ -121,16 +119,14 @@ class NodeNetworkBuilder:
             NodeResourceLimitExceededError: If any resource limit is exceeded:
                 - Node size > config.max_node_size
                 - Network size > config.max_network_size
-                - Node tokens > config.max_tokens_per_node (if configured)
-                - Network tokens > config.max_tokens_per_network (if configured)
             FileNotFoundError: If root file does not exist
             FormatDetectionError: If format cannot be detected for any node
             FormatParseError: If parsing fails for any node
 
         Example:
             >>> builder = NodeNetworkBuilder()
-            >>> config = NetworkConfig(max_depth=5, token_model="gpt-4")
-            >>> network = builder.build_network(Path("blueprints/research.yaml"), config)
+            >>> config = NetworkConfig(max_depth=5)
+            >>> network = builder.build_network(Path("prompts/research.yaml"), config)
             >>> print(f"Network has {len(network.nodes)} nodes")
             Network has 5 nodes
         """
@@ -180,39 +176,17 @@ class NodeNetworkBuilder:
 
         # Calculate network metrics
         total_size = sum(len(str(node.content).encode("utf-8")) for node in nodes.values())
-        total_tokens = 0
-        if self.token_counter:
-            for node in nodes.values():
-                try:
-                    node_tokens = self.token_counter.count_tokens_for_node(node, config.token_model)
-                    total_tokens += node_tokens
 
-                    # Check per-node token limit
-                    if (
-                        config.max_tokens_per_node is not None
-                        and node_tokens > config.max_tokens_per_node
-                    ):
-                        raise NodeResourceLimitExceededError(
-                            f"Node {node.id} exceeds token limit: {node_tokens} > {config.max_tokens_per_node}",
-                            limit_type="tokens_per_node",
-                            current_value=node_tokens,
-                            max_value=config.max_tokens_per_node,
-                        )
-
-                    # Check per-node size limit
-                    node_size = len(str(node.content).encode("utf-8"))
-                    if node_size > config.max_node_size:
-                        raise NodeResourceLimitExceededError(
-                            f"Node {node.id} exceeds size limit: {node_size} > {config.max_node_size}",
-                            limit_type="node_size",
-                            current_value=node_size,
-                            max_value=config.max_node_size,
-                        )
-                except NodeResourceLimitExceededError:
-                    raise
-                except Exception:
-                    # Token counting is optional, continue if it fails
-                    pass
+        # Check per-node size limits
+        for node in nodes.values():
+            node_size = len(str(node.content).encode("utf-8"))
+            if node_size > config.max_node_size:
+                raise NodeResourceLimitExceededError(
+                    f"Node {node.id} exceeds size limit: {node_size} > {config.max_node_size}",
+                    limit_type="node_size",
+                    current_value=node_size,
+                    max_value=config.max_node_size,
+                )
 
         # Check network size limit
         if len(nodes) > config.max_network_size:
@@ -223,18 +197,6 @@ class NodeNetworkBuilder:
                 max_value=config.max_network_size,
             )
 
-        # Check network token limit
-        if (
-            config.max_tokens_per_network is not None
-            and total_tokens > config.max_tokens_per_network
-        ):
-            raise NodeResourceLimitExceededError(
-                f"Network token count exceeds limit: {total_tokens} > {config.max_tokens_per_network}",
-                limit_type="tokens_per_network",
-                current_value=total_tokens,
-                max_value=config.max_tokens_per_network,
-            )
-
         # Calculate depth
         network_depth = self._calculate_depth(root_node, nodes)
 
@@ -243,7 +205,6 @@ class NodeNetworkBuilder:
             root=root_node,
             nodes=nodes,
             total_size=total_size,
-            total_tokens=total_tokens,
             depth=network_depth,
         )
 

@@ -6,7 +6,7 @@ import logging
 import os
 from typing import Any, Dict
 
-from promptic.settings.base import ContextEngineSettings
+# AICODE-NOTE: Removed dead import of ContextEngineSettings (only used by blueprints/adapters)
 
 
 def get_logger(name: str) -> logging.Logger:

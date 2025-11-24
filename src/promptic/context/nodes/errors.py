@@ -89,7 +89,11 @@ class NodeNetworkDepthExceededError(Exception):
 
 
 class NodeResourceLimitExceededError(Exception):
-    """Raised when resource limits are exceeded (size, tokens, etc.)."""
+    """Raised when resource limits are exceeded (size, depth, etc.).
+
+    # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+    # Limit types are now: "node_size", "network_size", "depth"
+    """
 
     def __init__(
         self,
@@ -102,7 +106,7 @@ class NodeResourceLimitExceededError(Exception):
 
         Args:
             message: Error message
-            limit_type: Type of limit exceeded (e.g., "node_size", "network_size", "tokens")
+            limit_type: Type of limit exceeded (e.g., "node_size", "network_size", "depth")
             current_value: Current value that exceeded limit
             max_value: Maximum allowed value
         """
@@ -110,12 +114,6 @@ class NodeResourceLimitExceededError(Exception):
         self.limit_type = limit_type
         self.current_value = current_value
         self.max_value = max_value
-
-
-class TokenCountingError(Exception):
-    """Raised when token counting fails."""
-
-    pass
 
 
 class LegacyAdapterError(Exception):
