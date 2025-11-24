@@ -1,24 +1,13 @@
 # promptic
 
-A Python library for managing prompts and context using file-first architecture with cross-references and semantic versioning.
+Easy prompt management for Python projects using file-first architecture and versioning.
 
 ## Overview
 
-**promptic** helps you organize complex prompts and instructions across multiple files with cross-references, version management, and format conversion. Perfect for managing LLM prompts, multi-agent systems, and structured instruction hierarchies.
+**promptic** is a Python library for managing prompts and context using a file-first approach. It focuses on two core features:
 
-### Core Features
-
-1. **📁 File Networks** - Load and render hierarchical file structures with cross-references
-   - Link files together using references (markdown links, `$ref`, jinja2 comments)
-   - Support for YAML, JSON, Markdown, and Jinja2 formats
-   - Convert between formats seamlessly
-   - Two render modes: inline all content or preserve references
-
-2. **🔖 Semantic Versioning** - Version your prompts with semantic versioning
-   - Version files using suffixes: `prompt_v1.0.0.md`, `prompt_v2.md`
-   - Load specific versions or always get "latest"
-   - Export clean snapshots without version suffixes
-   - Hierarchical version resolution
+1. **Node Networks**: Load and render hierarchical file structures with references
+2. **Versioning**: Manage and export versioned prompts with semantic versioning
 
 ## Installation
 
@@ -28,178 +17,93 @@ pip install -e .
 
 ## Quick Start
 
-### 1. Working with File Networks
+### Node Networks
 
-Create interconnected prompt files and render them:
-
-**Create files with cross-references:**
-
-```markdown
-<!-- main.md -->
-# Main Prompt
-
-Here are the instructions:
-[Process Steps](./steps.md)
-
-Context information:
-[Background Info](./context.md)
-```
-
-**Load and render:**
+Load interconnected files and render them in various formats:
 
 ```python
 from promptic.sdk.nodes import load_node_network, render_node_network
+from pathlib import Path
 
-# Load the file network
-network = load_node_network("main.md")
+# Load a node network from a root file
+network = load_node_network(Path("prompts/root.md"))
 
-# Render with all content inlined
+# Render to markdown (or yaml, json)
 output = render_node_network(
     network,
     target_format="markdown",
-    render_mode="full"  # Inlines all referenced content
+    render_mode="full",
 )
 print(output)
+```
 
-# Or preserve references as links
-output = render_node_network(
-    network,
-    target_format="markdown",
-    render_mode="file_first"  # Keeps references as links
+### Versioning
+
+Load and export specific versions of your prompts:
+
+```python
+from promptic import load_prompt, export_version
+from pathlib import Path
+
+# Load a specific version
+prompt = load_prompt(
+    prompts_dir=Path("prompts"),
+    version="v1.0.0"  # or "latest"
 )
-```
 
-**Convert between formats:**
-
-```python
-# Load YAML, output as JSON
-network = load_node_network("config.yaml")
-json_output = render_node_network(network, target_format="json")
-
-# Load Markdown, output as YAML
-network = load_node_network("prompt.md")
-yaml_output = render_node_network(network, target_format="yaml")
-```
-
-### 2. Version Management
-
-Version your prompts and export clean snapshots:
-
-**Version your files:**
-
-```
-prompts/
-  workflow_v1.0.0.md
-  workflow_v2.0.0.md
-  tasks/
-    definition_v1.0.0.md
-    definition_v2.0.0.md
-```
-
-**Load specific versions:**
-
-```python
-from promptic import load_prompt
-
-# Load latest version
-latest = load_prompt("prompts/", version="latest")
-
-# Load specific version
-v1 = load_prompt("prompts/", version="v1.0.0")
-v2 = load_prompt("prompts/", version="v2.0.0")
-```
-
-**Export version snapshots:**
-
-```python
-from promptic import export_version
-
-# Export a complete version (removes version suffixes)
+# Export a version (removes version suffixes)
 result = export_version(
-    source_path="prompts/",
-    version_spec="v2.0.0",
-    target_dir="deployed/v2",
+    source_path=Path("prompts"),
+    version_spec="v1.0.0",
+    target_dir=Path("exported/v1"),
     overwrite=True
 )
-
-# Result preserves directory structure:
-# deployed/v2/workflow.md  (was workflow_v2.0.0.md)
-# deployed/v2/tasks/definition.md  (was definition_v2.0.0.md)
 ```
 
-## Key Features
+## Features
 
-### 📁 File Networks with Cross-References
+### File-First Architecture
 
-Organize prompts across multiple files and link them together:
+Organize your prompts as interconnected files in any supported format:
+- **YAML**: Structured data with references
+- **Markdown**: Human-readable documentation
+- **JSON**: Programmatic access
+- **Jinja2**: Dynamic templating
 
-**Supported Formats:**
-- **Markdown** - Human-readable docs with `[label](path)` links
-- **YAML** - Structured data with `{$ref: "path"}` references
-- **JSON** - Programmatic access with `{"$ref": "path"}` references
-- **Jinja2** - Dynamic templates with `{# ref: path #}` references
+Files can reference each other, creating hierarchical structures that are easy to navigate and maintain.
 
-**Render Modes:**
-- `file_first` - Preserves file references as links (compact output)
-- `full` - Inlines all referenced content at reference locations (expanded output)
+### Semantic Versioning
 
-**Format Conversion:**
-Convert between any supported formats while preserving structure and references.
+Version your prompts using semantic versioning conventions:
+- Files use version suffixes: `prompt_v1.0.0.md`, `prompt_v2.md`
+- Load specific versions or "latest"
+- Export versions with clean filenames (suffixes removed)
+- Preserve directory structures
 
-### 🔖 Semantic Versioning
+### Simple API
 
-Version your prompts systematically:
-
-**Version Syntax:**
-- Full version: `prompt_v1.0.0.md`
-- Major.minor: `prompt_v1.2.md`
-- Major only: `prompt_v2.md`
-
-**Features:**
-- Load specific versions or always use "latest"
-- Export clean snapshots (version suffixes removed)
-- Hierarchical version resolution (different versions per subdirectory)
-- Preserves directory structures on export
-
-### 🎯 Simple API
-
-**Core Functions:**
-```python
-# Versioning API
-from promptic import load_prompt, export_version, cleanup_exported_version
-
-# File Networks API  
-from promptic.sdk.nodes import load_node_network, render_node_network
-```
-
-That's it! Just 5 functions for all functionality.
+The library exports just what you need:
+- `load_prompt()` - Load versioned prompts
+- `export_version()` - Export a version to a directory
+- `cleanup_exported_version()` - Clean up exported files
+- `load_node_network()` - Load file networks (from `promptic.sdk.nodes`)
+- `render_node_network()` - Render networks (from `promptic.sdk.nodes`)
 
 ## Examples
 
-Complete working examples in `examples/get_started/`:
+See the `examples/get_started/` directory for complete examples:
 
-| Example | Description | Key Concepts |
-|---------|-------------|--------------|
-| **1-inline-full-render/** | Simple file with includes | Basic loading, full render mode |
-| **2-file-first/** | Preserving file references | file_first render mode |
-| **3-multiple-files/** | Multiple root files | Shared includes across files |
-| **4-file-formats/** | All formats (YAML/JSON/Jinja2/MD) | Format conversion, mixed formats |
-| **5-versioning/** | Loading specific versions | Semantic versioning, version resolution |
-| **6-version-export/** | Exporting clean snapshots | Version export, deployment |
+- **003-multiple-files**: Load and render networks with multiple root files
+- **004-file-formats**: Work with different file formats (YAML, Markdown, JSON, Jinja2)
+- **005-versioning**: Load different versions of prompts
+- **006-version-export**: Export versions with directory structure preservation
 
-**Run examples:**
+Run examples:
 
 ```bash
-# Basic file network
-python examples/get_started/1-inline-full-render/render.py
-
-# Format conversion
+python examples/get_started/3-multiple-files/render.py
 python examples/get_started/4-file-formats/render.py
-
-# Versioning
 python examples/get_started/5-versioning/render.py
-
-# Version export
 python examples/get_started/6-version-export/export_demo.py
 ```
 
@@ -236,26 +140,22 @@ isort --profile=black --line-length=100 src/ tests/
 pre-commit run --all-files
 ```
 
-## Use Cases
-
-**promptic** is perfect for:
-
-- 🤖 **LLM Prompt Management** - Organize complex prompts across multiple files
-- 🔄 **Multi-Agent Systems** - Manage instructions for different agents with shared context
-- 📚 **Instruction Hierarchies** - Build structured documentation with cross-references
-- 🚀 **Prompt Deployment** - Version and deploy prompts to production environments
-- 🧪 **Prompt Testing** - Test different versions side-by-side
-- 📝 **Documentation** - Create interconnected documentation with version control
-
 ## Architecture
 
-The library follows Clean Architecture principles with clear separation of concerns:
+The library follows Clean Architecture principles:
 
-- **Domain Layer**: Core models (`ContextNode`, `NodeNetwork`)
-- **Use Cases**: Loading, rendering, version resolution
-- **Adapters**: Format parsers (YAML/JSON/Markdown/Jinja2), filesystem operations
+- **Entities**: `ContextNode`, `NodeNetwork` (domain models)
+- **Use Cases**: Node loading, rendering, version resolution
+- **Interface Adapters**: Format parsers, filesystem resolvers
 
-See `docs_site/` for detailed architecture documentation.
+All dependencies point inward toward the domain layer.
+
+## Documentation
+
+Additional documentation is available in `docs_site/`:
+- Architecture documentation
+- Versioning guide
+- Integration examples
 
 ## Requirements
 
