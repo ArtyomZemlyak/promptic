@@ -169,22 +169,28 @@ See LICENSE file for details.
 ## Contributing
 
 This library follows strict code quality standards:
-1. All code must pass `black` and `isort` formatting
-2. All tests must pass (`pytest tests/ -v`)
-3. Pre-commit hooks must pass (`pre-commit run --all-files`)
-4. See `AGENTS.md` for detailed contribution guidelines
 
-## What Changed (v0.7.0)
+1. **Code Formatting**: All code must pass `black` and `isort` formatting
+2. **Tests**: All tests must pass (`pytest tests/ -v`)
+3. **Pre-commit Hooks**: Must pass before any commit (`pre-commit run --all-files`)
+4. **Documentation**: Update docs for new features
 
-This version significantly simplifies the library by removing unused features:
+See `AGENTS.md` for detailed contribution guidelines and development workflow.
 
-**Removed**:
-- Blueprint system (legacy architecture)
-- Adapter system (data/memory adapters)
-- Token counting functionality
-- Settings package
-- Various pipeline modules
+## Changelog
 
-**Why**: These features were not used in examples 003-006 and added unnecessary complexity. The library now focuses solely on node networks and versioning, which are the core features actively used.
+### v0.1.0 (2025-11-24)
 
-**Migration**: If you were using blueprints, migrate to node networks (see examples). The node network API is simpler and more flexible.
+**Initial Release** 🎉
+
+Core functionality:
+- ✅ File network loading and rendering with cross-references
+- ✅ Support for Markdown, YAML, JSON, and Jinja2 formats
+- ✅ Two render modes: `file_first` and `full`
+- ✅ Format conversion between all supported formats
+- ✅ Semantic versioning with version suffixes
+- ✅ Version loading and resolution
+- ✅ Version export with clean snapshots
+- ✅ Hierarchical version resolution
+- ✅ Complete example suite in `examples/get_started/`
+- ✅ Full test coverage
