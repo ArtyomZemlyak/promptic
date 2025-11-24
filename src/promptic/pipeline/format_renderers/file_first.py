@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Sequence
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 from promptic.blueprints.adapters.legacy import node_to_instruction
 from promptic.blueprints.models import (
@@ -67,12 +67,13 @@ class FileSummaryService:
         self._overrides = {self._normalize_key(k): v for k, v in (overrides or {}).items()}
         self._cache: Dict[str, SummaryResult] = {}
 
-    def summarize(self, instruction_id: str) -> SummaryResult:
-        cached = self._cache.get(instruction_id)
+    def summarize(self, instruction_id: str, version: Optional[str] = None) -> SummaryResult:
+        cache_key = f"{instruction_id}:{version}" if version else instruction_id
+        cached = self._cache.get(cache_key)
         if cached:
             return cached
 
-        result = self._materializer.resolve_instruction(instruction_id)
+        result = self._materializer.resolve_instruction(instruction_id, version=version)
         if not result.ok:
             raise InstructionNotFoundError(instruction_id)
         node, content = result.unwrap()
@@ -86,7 +87,7 @@ class FileSummaryService:
             summary=summary,
             token_estimate=token_estimate,
         )
-        self._cache[instruction_id] = payload
+        self._cache[cache_key] = payload
         return payload
 
     def _lookup_override(self, instruction_id: str, relative_path: str) -> str | None:
@@ -222,7 +223,9 @@ class ReferenceTreeBuilder:
         is_secondary: bool = False,
     ) -> InstructionReference | None:
         try:
-            summary = self._summary_service.summarize(node_ref.instruction_id)
+            summary = self._summary_service.summarize(
+                node_ref.instruction_id, version=node_ref.version
+            )
         except InstructionNotFoundError:
             self._missing_paths.add(node_ref.instruction_id)
             return None

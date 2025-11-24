@@ -5,7 +5,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from threading import RLock
-from typing import Any, Callable, Dict, Mapping, MutableMapping, Sequence, Tuple
+from typing import Any, Callable, Dict, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 from promptic.adapters.registry import AdapterRegistry, BaseDataAdapter, BaseMemoryProvider
 from promptic.blueprints.models import (
@@ -30,6 +30,7 @@ from promptic.context.errors import (
 )
 from promptic.instructions.store import InstructionResolver
 from promptic.settings.base import ContextEngineSettings
+from promptic.versioning import VersionSpec
 
 
 @dataclass
@@ -74,22 +75,23 @@ class ContextMaterializer:
         self._fallback_events: list[FallbackEvent] = []
 
     def resolve_instruction(
-        self, instruction_id: str
+        self, instruction_id: str, version: Optional[VersionSpec] = None
     ) -> OperationResult[Tuple[InstructionNode, str]]:
+        cache_key = f"{instruction_id}:{version}" if version else instruction_id
         with self._lock:
-            cached = self._instruction_cache.get(instruction_id)
+            cached = self._instruction_cache.get(cache_key)
             if cached:
-                self._instruction_cache.move_to_end(instruction_id)
+                self._instruction_cache.move_to_end(cache_key)
                 self._stats.instruction_hits += 1
                 return OperationResult.success(cached)
         try:
-            node, content = self._resolver.resolve(instruction_id)
+            node, content = self._resolver.resolve(instruction_id, version=version)
         except InstructionNotFoundError as exc:
             return OperationResult.failure(exc)
         self._stats.instruction_misses += 1
         with self._lock:
-            self._instruction_cache[instruction_id] = (node, content)
-            self._instruction_cache.move_to_end(instruction_id)
+            self._instruction_cache[cache_key] = (node, content)
+            self._instruction_cache.move_to_end(cache_key)
             if len(self._instruction_cache) > self._instruction_cache_size:
                 self._instruction_cache.popitem(last=False)
         return OperationResult.success((node, content))
@@ -100,7 +102,7 @@ class ContextMaterializer:
         resolved: list[Tuple[InstructionNode, str]] = []
         aggregated_warnings: list[str] = []
         for ref in refs:
-            result = self.resolve_instruction(ref.instruction_id)
+            result = self.resolve_instruction(ref.instruction_id, version=ref.version)
             aggregated_warnings.extend(result.warnings)
             if not result.ok:
                 fallback_config = ref.fallback or InstructionFallbackConfig()
@@ -243,8 +245,8 @@ class ContextMaterializer:
         warmed = 0
         warnings: list[str] = []
         requirements = self._collect_instruction_requirements(blueprint)
-        for instruction_id, require_strict in requirements.items():
-            result = self.resolve_instruction(instruction_id)
+        for (instruction_id, version), require_strict in requirements.items():
+            result = self.resolve_instruction(instruction_id, version=version)
             warnings.extend(result.warnings)
             if not result.ok:
                 if require_strict:
@@ -345,14 +347,17 @@ class ContextMaterializer:
             self._stats.memory_provider_instances += 1
         return provider
 
-    def _collect_instruction_requirements(self, blueprint: ContextBlueprint) -> dict[str, bool]:
-        requirements: dict[str, bool] = {}
+    def _collect_instruction_requirements(
+        self, blueprint: ContextBlueprint
+    ) -> dict[Tuple[str, Optional[str]], bool]:
+        requirements: dict[Tuple[str, Optional[str]], bool] = {}
 
         def _register(ref: InstructionNodeRef) -> None:
             fallback = ref.fallback or InstructionFallbackConfig()
             strict = fallback.mode == InstructionFallbackPolicy.ERROR
-            existing = requirements.get(ref.instruction_id, False)
-            requirements[ref.instruction_id] = existing or strict
+            key = (ref.instruction_id, ref.version)
+            existing = requirements.get(key, False)
+            requirements[key] = existing or strict
 
         for ref in blueprint.global_instructions:
             _register(ref)

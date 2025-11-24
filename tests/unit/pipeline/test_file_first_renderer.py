@@ -26,7 +26,7 @@ class StubSummaryService:
             token_estimate=len(summary.split()),
         )
 
-    def summarize(self, instruction_id: str) -> SummaryResult:
+    def summarize(self, instruction_id: str, version: str | None = None) -> SummaryResult:
         if instruction_id not in self.values:
             raise InstructionNotFoundError(instruction_id)
         return self.values[instruction_id]

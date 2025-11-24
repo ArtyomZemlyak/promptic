@@ -29,7 +29,7 @@ class MemoryInstructionStore(InstructionStore):
     def list_ids(self) -> Sequence[str]:
         return tuple(self._mapping.keys())
 
-    def get_node(self, instruction_id: str) -> InstructionNode:
+    def get_node(self, instruction_id: str, version: str | None = None) -> InstructionNode:
         if instruction_id not in self._mapping:
             raise InstructionNotFoundError(instruction_id)
         self.load_calls += 1
@@ -39,10 +39,10 @@ class MemoryInstructionStore(InstructionStore):
             format="md",
             checksum="a" * 32,
             locale="en-US",
-            version="1",
+            version=version or "1",
         )
 
-    def load_content(self, instruction_id: str) -> str:
+    def load_content(self, instruction_id: str, version: str | None = None) -> str:
         if instruction_id not in self._mapping:
             raise InstructionNotFoundError(instruction_id)
         return self._mapping[instruction_id]

@@ -214,7 +214,7 @@ def test_network_rendering_to_file_first():
     # Render network to file-first format
     from promptic.sdk.nodes import render_node_network
 
-    rendered = render_node_network(network, target_format="file_first")
+    rendered = render_node_network(network, target_format="yaml", render_mode="file_first")
 
     assert isinstance(rendered, str)
     assert len(rendered) > 0

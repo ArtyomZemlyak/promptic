@@ -88,6 +88,10 @@ class ContextEngineSettings(BaseSettings):
         default_factory=SizeBudgetSettings,
         description="Guardrails for preview/execution text budgets and nesting depth.",
     )
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level for versioning operations (DEBUG, INFO, WARNING, ERROR).",
+    )
 
     def ensure_directories(self) -> None:
         """Create directories that must exist before interacting with the filesystem."""

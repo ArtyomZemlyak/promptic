@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from promptic.context.nodes.errors import FormatDetectionError, FormatParseError
 from promptic.context.nodes.models import ContextNode, NetworkConfig, NodeNetwork
 from promptic.format_parsers.registry import get_default_registry
 from promptic.pipeline.network.builder import NodeNetworkBuilder
+from promptic.versioning import VersionSpec
 
 
 def load_node(path: Path | str) -> ContextNode:
@@ -85,7 +86,9 @@ def load_node(path: Path | str) -> ContextNode:
     return node
 
 
-def render_node(node: ContextNode, target_format: Literal["yaml", "markdown", "json"]) -> str:
+def render_node(
+    node: ContextNode, target_format: Literal["yaml", "markdown", "json", "jinja2"]
+) -> str:
     """Render a single ContextNode to target format.
 
     Converts the node's JSON content to the specified target format. The rendering
@@ -97,10 +100,10 @@ def render_node(node: ContextNode, target_format: Literal["yaml", "markdown", "j
 
     Args:
         node: ContextNode to render (must have valid content)
-        target_format: Target format to render to (yaml, markdown, json)
+        target_format: Target format to render to (yaml, markdown, json, jinja2)
 
     Returns:
-        Rendered content as string in the specified format. For markdown,
+        Rendered content as string in the specified format. For markdown and jinja2,
         attempts to preserve original structure if available in content.
 
     Raises:
@@ -111,6 +114,7 @@ def render_node(node: ContextNode, target_format: Literal["yaml", "markdown", "j
         >>> node = load_node("instructions/analyze.md")
         >>> yaml_output = render_node(node, "yaml")
         >>> markdown_output = render_node(node, "markdown")
+        >>> jinja2_output = render_node(node, "jinja2")
     """
     if target_format == "json":
         import json
@@ -122,7 +126,7 @@ def render_node(node: ContextNode, target_format: Literal["yaml", "markdown", "j
 
         return yaml.dump(node.content, default_flow_style=False, sort_keys=False)
 
-    elif target_format == "markdown":
+    elif target_format == "markdown" or target_format == "jinja2":
         # Convert JSON content to Markdown
         content = node.content
         # AICODE-NOTE: For markdown nodes, always prefer raw_content if available
@@ -170,7 +174,11 @@ def render_node(node: ContextNode, target_format: Literal["yaml", "markdown", "j
         raise ValueError(f"Unsupported target format: {target_format}")
 
 
-def load_node_network(root_path: Path | str, config: NetworkConfig | None = None) -> NodeNetwork:
+def load_node_network(
+    root_path: Path | str,
+    config: NetworkConfig | None = None,
+    version: Optional[VersionSpec] = None,
+) -> NodeNetwork:
     """Build a node network from a root path with recursive reference resolution.
 
     This function loads the root node and recursively resolves all references to
@@ -188,6 +196,7 @@ def load_node_network(root_path: Path | str, config: NetworkConfig | None = None
         config: Network configuration (limits, token model, etc.).
             Defaults to NetworkConfig() with standard limits (max_depth=10,
             max_node_size=10MB, max_network_size=1000).
+        version: Optional version specification for version-aware resolution.
 
     Returns:
         NodeNetwork instance with all nodes loaded, references resolved, and
@@ -216,12 +225,12 @@ def load_node_network(root_path: Path | str, config: NetworkConfig | None = None
         raise FileNotFoundError(f"Root node file not found: {path_obj}")
 
     builder = NodeNetworkBuilder()
-    return builder.build_network(path_obj, config)
+    return builder.build_network(path_obj, config, version=version)
 
 
 def render_node_network(
     network: NodeNetwork,
-    target_format: Literal["yaml", "markdown", "json"],
+    target_format: Literal["yaml", "markdown", "json", "jinja2"],
     render_mode: Literal["full", "file_first"] = "file_first",
 ) -> str:
     """Render a NodeNetwork to target format with specified render mode.
@@ -238,7 +247,7 @@ def render_node_network(
 
     Args:
         network: NodeNetwork to render (must have valid root node)
-        target_format: Target format to render to (markdown, yaml, json).
+        target_format: Target format to render to (markdown, yaml, json, jinja2).
             If source format matches target_format and render_mode="file_first",
             returns raw content without conversion.
         render_mode: Rendering mode:

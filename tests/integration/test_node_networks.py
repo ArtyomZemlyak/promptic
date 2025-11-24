@@ -108,7 +108,9 @@ def test_network_rendering_all_formats():
         yaml_output = render_node_network(network, target_format="yaml")
         markdown_output = render_node_network(network, target_format="markdown")
         json_output = render_node_network(network, target_format="json")
-        file_first_output = render_node_network(network, target_format="file_first")
+        file_first_output = render_node_network(
+            network, target_format="yaml", render_mode="file_first"
+        )
 
         # All outputs should be non-empty strings
         assert len(yaml_output) > 0

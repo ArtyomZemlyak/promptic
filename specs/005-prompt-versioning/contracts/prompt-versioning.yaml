@@ -1,0 +1,325 @@
+openapi: 3.0.1
+info:
+  title: Prompt Versioning SDK API
+  version: 0.1.0
+  description: >
+    Reference contract for the Prompt Versioning System SDK.
+    This contract describes the function signatures, types, and behavior
+    for version-aware prompt loading, exporting, and cleanup operations.
+
+servers:
+  - url: sdk://promptic.versioning
+    description: Python SDK (in-process)
+
+paths:
+  /versioning/load:
+    post:
+      summary: Load prompt with version resolution
+      operationId: load_prompt_with_version
+      description: >
+        Loads a prompt from a directory path with version resolution.
+        Supports loading latest version (default), specific version,
+        or hierarchical version specifications.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - path
+              properties:
+                path:
+                  type: string
+                  description: Directory path or file path to load
+                  example: "prompts/task1/"
+                version:
+                  oneOf:
+                    - type: string
+                      description: Version specification ("latest" or semantic version like "v1.0.0", "v1", "v1.1")
+                      example: "latest"
+                    - type: object
+                      description: Hierarchical version specification mapping path patterns to versions
+                      additionalProperties:
+                        type: string
+                      example:
+                        root: "v1.0.0"
+                        "instructions/process": "v2.0.0"
+      responses:
+        "200":
+          description: Prompt loaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        "404":
+          description: Version or path not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionNotFoundError'
+        "400":
+          description: Invalid version specification or ambiguous version detection
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/VersionDetectionError'
+                  - $ref: '#/components/schemas/VersionResolutionCycleError'
+
+  /versioning/export:
+    post:
+      summary: Export version snapshot
+      operationId: export_version
+      description: >
+        Exports a complete version snapshot of a prompt hierarchy
+        to a target directory, preserving hierarchical structure
+        and resolving path references.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source_path
+                - target_dir
+              properties:
+                source_path:
+                  type: string
+                  description: Source prompt path
+                  example: "prompts/task1/"
+                version:
+                  oneOf:
+                    - type: string
+                      description: Version specification ("latest" or semantic version)
+                      example: "v2.0.0"
+                    - type: object
+                      description: Hierarchical version specification
+                      additionalProperties:
+                        type: string
+                target_dir:
+                  type: string
+                  description: Target export directory path
+                  example: "export/task1_v2/"
+                overwrite:
+                  type: boolean
+                  description: Overwrite existing target directory
+                  default: false
+      responses:
+        "200":
+          description: Export completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResult'
+        "400":
+          description: Export failed (missing files, invalid paths)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportError'
+        "409":
+          description: Target directory already exists (without overwrite)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportDirectoryExistsError'
+
+  /versioning/cleanup:
+    delete:
+      summary: Cleanup exported version directory
+      operationId: cleanup_exported_version
+      description: >
+        Safely removes an exported version directory.
+        Validates that target is an export directory (not source)
+        to prevent accidental deletion of source prompts.
+      parameters:
+        - in: query
+          name: export_dir
+          required: true
+          schema:
+            type: string
+          description: Export directory path to remove
+          example: "export/task1_v2/"
+        - in: query
+          name: require_confirmation
+          schema:
+            type: boolean
+            default: false
+          description: Require explicit confirmation if validation is uncertain
+      responses:
+        "204":
+          description: Cleanup completed successfully
+        "400":
+          description: Invalid cleanup target (source directory or validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidCleanupTargetError'
+        "404":
+          description: Export directory not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupTargetNotFoundError'
+
+components:
+  schemas:
+    Prompt:
+      type: object
+      description: Loaded prompt with version information
+      properties:
+        content:
+          type: string
+          description: Prompt content
+        path:
+          type: string
+          description: Resolved file path
+        version:
+          type: string
+          description: Version identifier
+          example: "v2.0.0"
+
+    ExportResult:
+      type: object
+      description: Export operation result
+      required:
+        - root_prompt_content
+        - exported_files
+      properties:
+        root_prompt_content:
+          type: string
+          description: Root prompt content with resolved paths
+        exported_files:
+          type: array
+          items:
+            type: string
+          description: List of exported file paths
+        structure_preserved:
+          type: boolean
+          description: True if hierarchical structure preserved
+          default: true
+
+    VersionNotFoundError:
+      type: object
+      description: Version not found error
+      required:
+        - message
+        - path
+        - version_spec
+      properties:
+        message:
+          type: string
+          example: "Version v5.0.0 not found"
+        path:
+          type: string
+          example: "prompts/task1/"
+        version_spec:
+          type: string
+          example: "v5.0.0"
+        available_versions:
+          type: array
+          items:
+            type: string
+          example: ["v1.0.0", "v1.1.0", "v2.0.0"]
+        suggested_version:
+          type: string
+          description: Latest available version
+          example: "v2.0.0"
+
+    VersionDetectionError:
+      type: object
+      description: Ambiguous version detection error
+      required:
+        - message
+        - filename
+      properties:
+        message:
+          type: string
+          example: "Ambiguous version detection in filename"
+        filename:
+          type: string
+          example: "prompt_v1.0_final_v2.1.md"
+        matched_patterns:
+          type: array
+          items:
+            type: string
+          example: ["v1.0", "v2.1"]
+
+    VersionResolutionCycleError:
+      type: object
+      description: Circular version reference error
+      required:
+        - message
+        - cycle_path
+      properties:
+        message:
+          type: string
+          example: "Circular version reference detected"
+        cycle_path:
+          type: array
+          items:
+            type: string
+          example: ["A", "B", "C", "A"]
+
+    ExportError:
+      type: object
+      description: Export operation error
+      required:
+        - message
+        - source_path
+      properties:
+        message:
+          type: string
+          example: "Export failed: missing referenced files"
+        source_path:
+          type: string
+          example: "prompts/task1/"
+        missing_files:
+          type: array
+          items:
+            type: string
+          example: ["instructions/process.md", "templates/data.md"]
+
+    ExportDirectoryExistsError:
+      type: object
+      description: Export target directory exists error
+      required:
+        - message
+        - target_dir
+      properties:
+        message:
+          type: string
+          example: "Export directory already exists"
+        target_dir:
+          type: string
+          example: "export/task1_v2/"
+
+    InvalidCleanupTargetError:
+      type: object
+      description: Invalid cleanup target error (source directory)
+      required:
+        - message
+        - target_dir
+      properties:
+        message:
+          type: string
+          example: "Cannot delete source prompt directory"
+        target_dir:
+          type: string
+          example: "prompts/task1/"
+
+    CleanupTargetNotFoundError:
+      type: object
+      description: Cleanup target not found error
+      required:
+        - message
+        - target_dir
+      properties:
+        message:
+          type: string
+          example: "Export directory not found"
+        target_dir:
+          type: string
+          example: "export/nonexistent/"

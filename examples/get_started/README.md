@@ -96,7 +96,56 @@ python render.py
 
 ---
 
+### 5. Versioning (`5-versioning/`)
+
+Demonstrates how to load specific versions of prompts with hierarchical directory structure and semantic versioning.
+
+**What you'll learn:**
+- How to version prompt files using semantic versioning (v1.0.0, v2.0.0, etc.)
+- How to load specific versions or the latest version
+- How version resolution works in hierarchical structures
+- How referenced files are automatically resolved to matching versions
+
+**Files:**
+- `prompts/main_v1.0.0.md` and `main_v2.0.0.md` - Versioned main prompts
+- `prompts/instructions/process_v1.0.0.md` and `process_v2.0.0.md` - Versioned instructions
+- `prompts/context/details_v1.0.0.md` and `details_v2.0.0.md` - Versioned context
+- `render.py` - Loads and displays different versions
+
+**Run it:**
+```bash
+cd examples/get_started/5-versioning
+python3 render.py
+```
+
+---
+
+### 6. Version Export (`6-version-export/`)
+
+Demonstrates how to export specific versions of prompts, preserving directory structure and removing version suffixes.
+
+**What you'll learn:**
+- How to export complete version snapshots
+- How exported files maintain directory hierarchy
+- How version suffixes are removed from exported filenames
+- How path references are resolved in exported structure
+- How to compare and deploy different versions
+
+**Files:**
+- `prompts/workflow_v1.0.0.md` and `workflow_v2.0.0.md` - Versioned workflows
+- `prompts/tasks/`, `steps/`, `output/`, `quality/` - Hierarchical versioned files
+- `export_demo.py` - Exports different versions and shows comparison
+
+**Run it:**
+```bash
+cd examples/get_started/6-version-export
+python3 export_demo.py
+```
+
+---
+
 ## Next Steps
 
 After completing these examples, check out:
 - **Advanced Examples** (`../advanced/`) - Real-world examples with multi-agent setups and complex workflows
+- **Versioning Examples** (`../versioning/`) - More advanced versioning patterns and use cases

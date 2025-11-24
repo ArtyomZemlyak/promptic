@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from promptic.context.nodes.errors import (
     NodeNetworkDepthExceededError,
@@ -16,6 +16,7 @@ from promptic.context.nodes.models import ContextNode, NetworkConfig, NodeNetwor
 from promptic.format_parsers.registry import get_default_registry
 from promptic.resolvers.base import NodeReferenceResolver
 from promptic.resolvers.filesystem import FilesystemReferenceResolver
+from promptic.versioning import VersionSpec
 
 if TYPE_CHECKING:
     from promptic.token_counting.base import TokenCounter
@@ -63,15 +64,26 @@ class NodeNetworkBuilder:
         self.resolver = resolver or FilesystemReferenceResolver()
         self.token_counter = token_counter
 
-    def build_network(self, root_path: Path, config: NetworkConfig | None = None) -> NodeNetwork:
+    def build_network(
+        self,
+        root_path: Path,
+        config: NetworkConfig | None = None,
+        version: Optional[VersionSpec] = None,
+    ) -> NodeNetwork:
         """Build a node network from a root path with recursive reference resolution.
 
         This method orchestrates the complete network building process:
-        1. Loads the root node using format detection
-        2. Recursively resolves all references using the configured resolver
+        1. Loads the root node using format detection (with version resolution if version provided)
+        2. Recursively resolves all references using the configured resolver (with version resolution)
         3. Validates network structure (cycles, depth, resource limits)
         4. Calculates network metrics (size, tokens, depth)
         5. Returns a complete NodeNetwork instance
+
+        # AICODE-NOTE: Version-aware network building: When version is provided, the builder
+        uses version-aware path resolution for both the root node and all referenced nodes.
+        This enables hierarchical versioning where different parts of a prompt hierarchy
+        can use different versions. Version resolution is applied at the path resolution
+        level, so it works transparently with the existing resolver architecture.
 
         Side Effects:
             - Reads multiple files from filesystem (recursive loading)
@@ -83,9 +95,14 @@ class NodeNetworkBuilder:
         Args:
             root_path: Path to root node file (relative or absolute). The path
                 is used to determine the base directory for resolving relative references.
+                If root_path is a directory and version is provided, version resolution
+                is applied to select the appropriate versioned file.
             config: Network configuration with limits and token model. Defaults to
                 NetworkConfig() with standard limits (max_depth=10, max_node_size=10MB,
                 max_network_size=1000, token_model="gpt-4").
+            version: Optional version specification for version-aware resolution ("latest",
+                "v1", "v1.1", "v1.1.1", or hierarchical dict). If provided, version
+                resolution is applied to both root path and all referenced paths.
 
         Returns:
             NodeNetwork instance with:
@@ -120,10 +137,25 @@ class NodeNetworkBuilder:
         if config is None:
             config = NetworkConfig()
 
+        # Resolve root path with version if provided
+        root_node_path = root_path
+        if version is not None:
+            # If root_path is a directory, use version scanner to resolve versioned file
+            if root_path.is_dir():
+                from promptic.versioning import VersionedFileScanner
+
+                scanner = VersionedFileScanner()
+                try:
+                    resolved_file = scanner.resolve_version(str(root_path), version)
+                    root_node_path = Path(resolved_file)
+                except Exception:
+                    # If version resolution fails, fall back to original path
+                    pass
+
         # Load root node using format parser registry
         from promptic.sdk.nodes import load_node
 
-        root_node = load_node(root_path)
+        root_node = load_node(root_node_path)
 
         # Build network starting from root
         nodes: dict[str, ContextNode] = {}
@@ -142,6 +174,7 @@ class NodeNetworkBuilder:
             visited,
             recursion_stack,
             config,
+            version,  # Pass version for version-aware reference resolution
             depth=0,
         )
 
@@ -225,6 +258,7 @@ class NodeNetworkBuilder:
         visited: set[str],
         recursion_stack: set[str],
         config: NetworkConfig,
+        version: Optional[VersionSpec],
         depth: int,
     ) -> None:
         """Recursively build network by loading referenced nodes.
@@ -285,15 +319,25 @@ class NodeNetworkBuilder:
         # Resolve and load referenced nodes
         for ref in node.references:
             try:
-                # Validate reference exists (use network_root for relative paths)
-                if not self.resolver.validate(ref.path, network_root):
-                    raise NodeReferenceNotFoundError(
-                        f"Reference not found: {ref.path} (from {node_id})",
-                        reference_path=ref.path,
-                    )
+                # Validate reference exists (use network_root for relative paths, with version if provided)
+                if isinstance(self.resolver, FilesystemReferenceResolver):
+                    if not self.resolver.validate(ref.path, network_root, version):
+                        raise NodeReferenceNotFoundError(
+                            f"Reference not found: {ref.path} (from {node_id})",
+                            reference_path=ref.path,
+                        )
+                else:
+                    if not self.resolver.validate(ref.path, network_root):
+                        raise NodeReferenceNotFoundError(
+                            f"Reference not found: {ref.path} (from {node_id})",
+                            reference_path=ref.path,
+                        )
 
-                # Resolve reference (use network_root for relative paths)
-                referenced_node = self.resolver.resolve(ref.path, network_root)
+                # Resolve reference (use network_root for relative paths, with version if provided)
+                if isinstance(self.resolver, FilesystemReferenceResolver):
+                    referenced_node = self.resolver.resolve(ref.path, network_root, version)
+                else:
+                    referenced_node = self.resolver.resolve(ref.path, network_root)
 
                 # Recursively build network for referenced node
                 # Always use network_root for relative path resolution
@@ -305,6 +349,7 @@ class NodeNetworkBuilder:
                     visited,
                     recursion_stack,
                     config,
+                    version,  # Pass version through recursion
                     depth + 1,
                 )
 
@@ -349,3 +394,23 @@ class NodeNetworkBuilder:
             return max_depth
 
         return dfs(root, 1)
+
+    def collect_referenced_files(
+        self,
+        root_path: Path,
+        version: Optional[VersionSpec] = None,
+    ) -> set[str]:
+        """Collect all files referenced by the network rooted at root_path.
+
+        This method builds the network to resolve all references and versions,
+        then returns the set of all file paths involved.
+
+        Args:
+            root_path: Path to root node file
+            version: Optional version specification
+
+        Returns:
+            Set of absolute file paths referenced in the network
+        """
+        network = self.build_network(root_path, version=version)
+        return {str(Path(node_id).resolve()) for node_id in network.nodes}

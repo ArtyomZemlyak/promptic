@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 from promptic.blueprints.models import InstructionNode
 from promptic.instructions.store import InstructionStore
+from promptic.versioning import VersionSpec
 
 
 class InstructionCache(InstructionStore):
@@ -29,26 +30,43 @@ class InstructionCache(InstructionStore):
             self._index = tuple(self._store.list_ids())
         return self._index
 
-    def get_node(self, instruction_id: str) -> InstructionNode:
-        cached = self._node_cache.get(instruction_id)
+    def get_node(
+        self, instruction_id: str, version: Optional[VersionSpec] = None
+    ) -> InstructionNode:
+        # Cache key includes version to ensure different versions are cached separately
+        cache_key = self._make_cache_key(instruction_id, version)
+        cached = self._node_cache.get(cache_key)
         if cached:
-            self._node_cache.move_to_end(instruction_id)
+            self._node_cache.move_to_end(cache_key)
             return cached
-        node = self._store.get_node(instruction_id)
-        self._remember_node(instruction_id, node)
+        node = self._store.get_node(instruction_id, version)
+        self._remember_node(cache_key, node)
         return node
 
-    def load_content(self, instruction_id: str) -> str:
-        cached = self._content_cache.get(instruction_id)
+    def load_content(self, instruction_id: str, version: Optional[VersionSpec] = None) -> str:
+        # Cache key includes version to ensure different versions are cached separately
+        cache_key = self._make_cache_key(instruction_id, version)
+        cached = self._content_cache.get(cache_key)
         if cached is not None:
-            self._content_cache.move_to_end(instruction_id)
+            self._content_cache.move_to_end(cache_key)
             return cached
-        content = self._store.load_content(instruction_id)
-        self._remember_content(instruction_id, content)
+        content = self._store.load_content(instruction_id, version)
+        self._remember_content(cache_key, content)
         return content
 
-    def resolve_path(self, instruction_id: str) -> Path:
-        return self._store.resolve_path(instruction_id)
+    def resolve_path(self, instruction_id: str, version: Optional[VersionSpec] = None) -> Path:
+        return self._store.resolve_path(instruction_id, version)
+
+    def _make_cache_key(self, instruction_id: str, version: Optional[VersionSpec]) -> str:
+        """Create cache key that includes version for version-aware caching."""
+        if version is None:
+            return instruction_id
+        if isinstance(version, dict):
+            # For hierarchical versions, use sorted string representation
+            version_str = str(sorted(version.items()))
+        else:
+            version_str = str(version)
+        return f"{instruction_id}::version::{version_str}"
 
     def read_raw(self, relative_path: str) -> str:
         return self._store.read_raw(relative_path)
