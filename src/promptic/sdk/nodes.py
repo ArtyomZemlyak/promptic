@@ -185,36 +185,38 @@ def load_node_network(
     build a complete network. It performs validation including cycle detection,
     depth limiting, and resource limit enforcement.
 
+    # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+    # Network metadata now tracks only size and depth, not tokens.
+
     Side Effects:
         - Reads multiple files from filesystem (recursive loading)
         - Uses format parser registry and reference resolver
-        - Performs token counting if token_model is configured
         - No state mutation (pure function except for I/O)
 
     Args:
         root_path: Path to root node file (relative or absolute)
-        config: Network configuration (limits, token model, etc.).
+        config: Network configuration (limits).
             Defaults to NetworkConfig() with standard limits (max_depth=10,
             max_node_size=10MB, max_network_size=1000).
         version: Optional version specification for version-aware resolution.
 
     Returns:
         NodeNetwork instance with all nodes loaded, references resolved, and
-        network validated. The network includes metadata (total_size, total_tokens,
-        depth) calculated during building.
+        network validated. The network includes metadata (total_size, depth)
+        calculated during building.
 
     Raises:
         NodeNetworkValidationError: If network validation fails (cycles detected)
         NodeNetworkDepthExceededError: If depth exceeds config.max_depth
         NodeReferenceNotFoundError: If any reference cannot be resolved
-        NodeResourceLimitExceededError: If resource limits (size, tokens) exceeded
+        NodeResourceLimitExceededError: If resource limits (size) exceeded
         FileNotFoundError: If root file does not exist
         FormatDetectionError: If format cannot be detected for any node
         FormatParseError: If parsing fails for any node
 
     Example:
-        >>> config = NetworkConfig(max_depth=5, token_model="gpt-4")
-        >>> network = load_node_network("blueprints/research.yaml", config)
+        >>> config = NetworkConfig(max_depth=5)
+        >>> network = load_node_network("prompts/research.yaml", config)
         >>> print(f"Network depth: {network.depth}")
         Network depth: 3
         >>> print(f"Total nodes: {len(network.nodes)}")

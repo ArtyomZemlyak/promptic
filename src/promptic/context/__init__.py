@@ -1,27 +1,11 @@
-"""Promptic context package."""
+"""Promptic context package - simplified after blueprint/adapter removal.
 
-from .errors import (
-    AdapterExecutionError,
-    AdapterNotRegisteredError,
-    AdapterRegistrationError,
-    BlueprintValidationError,
-    ContextMaterializationError,
-    InstructionNotFoundError,
-    LoggingError,
-    OperationResult,
-    PrompticError,
-)
-from .logging import JsonlEventLogger
+# AICODE-NOTE: Blueprint and adapter error classes removed. Only node network
+#              error classes remain (in context.nodes.errors). Logging module
+#              removed as it was only used by blueprints.
+"""
 
-__all__ = [
-    "AdapterExecutionError",
-    "AdapterNotRegisteredError",
-    "AdapterRegistrationError",
-    "BlueprintValidationError",
-    "ContextMaterializationError",
-    "InstructionNotFoundError",
-    "JsonlEventLogger",
-    "LoggingError",
-    "OperationResult",
-    "PrompticError",
-]
+# Note: Most error classes are now defined in context.nodes.errors
+# This module is kept minimal for backward compatibility during migration
+
+__all__ = []  # type: ignore[var-annotated]

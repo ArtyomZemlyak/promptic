@@ -22,7 +22,6 @@ The architecture follows clean architecture principles with three main layers:
 
 - **Format Parsers**: `YAMLParser`, `MarkdownParser`, `Jinja2Parser`, `JSONParser`
 - **Reference Resolvers**: `FilesystemReferenceResolver`
-- **Token Counters**: `TiktokenTokenCounter`
 
 ## Key Design Principles
 

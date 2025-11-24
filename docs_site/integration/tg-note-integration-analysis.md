@@ -1,5 +1,7 @@
 # Интеграция promptic в tg-note: Анализ возможностей
 
+> **⚠️ УСТАРЕЛО**: Этот документ описывает интеграцию с использованием blueprints/adapters, которые были удалены из библиотеки. Для актуальных примеров интеграции см. README.md и examples/get_started/. Документ сохранен как историческая справка.
+
 **Дата**: 2025-01-27  
 **Проект**: tg-note ([GitHub](https://github.com/ArtyomZemlyak/tg-note))  
 **Библиотека**: promptic (file-first context engineering)

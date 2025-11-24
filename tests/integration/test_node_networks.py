@@ -122,43 +122,5 @@ def test_network_rendering_all_formats():
         pass
 
 
-def test_token_counting_on_final_rendered_content():
-    """Test token counting on final rendered content for accurate LLM context usage reflection."""
-    from promptic.pipeline.network.builder import NodeNetworkBuilder
-    from promptic.token_counting.tiktoken_counter import TiktokenTokenCounter
-
-    with TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
-
-        # Create root node with content
-        root_yaml = root / "root.yaml"
-        root_yaml.write_text(
-            """name: Token Counting Test
-prompt_template: "You are a helpful assistant."
-steps:
-  - step_id: step1
-    title: Step 1
-"""
-        )
-
-        # Load network with token counter
-        config = NetworkConfig(token_model="gpt-4")
-        token_counter = TiktokenTokenCounter()
-        builder = NodeNetworkBuilder(token_counter=token_counter)
-
-        network = builder.build_network(root_yaml, config)
-
-        # Verify token counting was performed
-        assert network.total_tokens > 0
-
-        # Verify token count matches rendered content
-        rendered_content = render_node_network(network, target_format="yaml")
-        rendered_tokens = token_counter.count_tokens(rendered_content, model="gpt-4")
-
-        # Network tokens should be close to rendered tokens (may differ slightly due to formatting)
-        # Allow some variance due to rendering differences
-        assert abs(network.total_tokens - rendered_tokens) < 100
-
-        # Verify token counting reflects actual LLM context usage
-        # (rendered content is what gets sent to LLM)
-        assert rendered_tokens > 0
+# AICODE-NOTE: test_token_counting_on_final_rendered_content removed
+# Token counting feature removed in spec 006-remove-unused-code

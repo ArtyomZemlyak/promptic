@@ -9,7 +9,12 @@ from pydantic import BaseModel, Field
 
 
 class NetworkConfig(BaseModel):
-    """Configuration for network building operations."""
+    """Configuration for network building operations.
+
+    # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+    # Removed fields: max_tokens_per_node, max_tokens_per_network, token_model.
+    # Network building now focuses on size and depth limits only.
+    """
 
     max_depth: int = Field(default=10, ge=1, description="Maximum depth limit")
     max_node_size: int = Field(
@@ -18,13 +23,6 @@ class NetworkConfig(BaseModel):
     max_network_size: int = Field(
         default=1000, ge=1, description="Maximum number of nodes in network"
     )
-    max_tokens_per_node: Optional[int] = Field(
-        default=None, ge=1, description="Maximum tokens per node (optional)"
-    )
-    max_tokens_per_network: Optional[int] = Field(
-        default=None, ge=1, description="Maximum tokens for entire network (optional)"
-    )
-    token_model: str = Field(default="gpt-4", min_length=1, description="Model for token counting")
 
 
 class NodeReference(BaseModel):
@@ -69,14 +67,15 @@ class ContextNode(BaseModel):
 
 
 class NodeNetwork(BaseModel):
-    """Container for a complete node network with validation and resource tracking."""
+    """Container for a complete node network with validation and resource tracking.
+
+    # AICODE-NOTE: Token counting removed - not used in examples 003-006.
+    # Removed field: total_tokens. Network tracking now focuses on size and depth only.
+    """
 
     root: ContextNode = Field(..., description="Root node of the network")
     nodes: dict[str, ContextNode] = Field(
         default_factory=dict, description="All nodes in the network by ID"
     )
     total_size: int = Field(default=0, ge=0, description="Total size of all nodes in bytes")
-    total_tokens: int = Field(
-        default=0, ge=0, description="Total tokens for all nodes (for specified model)"
-    )
     depth: int = Field(default=0, ge=0, description="Maximum depth of the network")
