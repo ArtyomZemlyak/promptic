@@ -337,4 +337,3 @@ Task: "Implement StructuredRefStrategy in src/promptic/rendering/strategies/stru
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - US4 (Pipeline) is optional and can be deferred indefinitely
-

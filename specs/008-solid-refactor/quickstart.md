@@ -55,16 +55,16 @@ from typing import Any, Callable, Optional
 
 class ReferenceStrategy(ABC):
     """Abstract base class for reference resolution strategies."""
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         pass
-    
+
     @abstractmethod
     def can_process(self, content: Any) -> bool:
         pass
-    
+
     @abstractmethod
     def process_string(
         self,
@@ -74,7 +74,7 @@ class ReferenceStrategy(ABC):
         target_format: str,
     ) -> str:
         pass
-    
+
     @abstractmethod
     def process_structure(
         self,
@@ -99,17 +99,17 @@ def test_markdown_link_replaces_local_ref():
     content = "[Instructions](instructions.md)"
     node_lookup = lambda p: MockNode(content="Hello World") if p == "instructions.md" else None
     renderer = lambda n, f: n.content
-    
+
     result = strategy.process_string(content, node_lookup, renderer, "markdown")
-    
+
     assert result == "Hello World"
 
 def test_markdown_link_preserves_external():
     strategy = MarkdownLinkStrategy()
     content = "[Google](https://google.com)"
-    
+
     result = strategy.process_string(content, lambda p: None, lambda n, f: "", "markdown")
-    
+
     assert result == "[Google](https://google.com)"
 ```
 
@@ -137,14 +137,14 @@ def test_markdown_link_preserves_external():
 def test_inliner_produces_same_output():
     # Load test fixture
     network = load_node_network("tests/fixtures/multi_ref.md")
-    
+
     # Get baseline from current implementation
     baseline = render_node_network(network, "markdown", render_mode="full")
-    
+
     # Get new implementation result
     inliner = ReferenceInliner()
     result = inliner.inline_references(network.root, network, "markdown")
-    
+
     assert result == baseline
 ```
 
@@ -256,4 +256,3 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from promptic.context.nodes.models import ContextNode
 ```
-

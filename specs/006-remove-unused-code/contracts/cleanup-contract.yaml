@@ -147,4 +147,3 @@ components:
         render_preview:
           type: function
           status: removed
-

@@ -199,7 +199,7 @@ class VersionExporter:
         file_mapping = self._build_file_mapping(source_base, target, version_spec)
         processor = self._create_content_processor(vars, hierarchical_paths)
         return self._execute_export(file_mapping, target, processor)
-    
+
     def _validate_export(self, target_dir, overwrite): ...
     def _resolve_root_version(self, source_path, version_spec): ...
     def _build_file_mapping(self, source_base, target, version_spec): ...
@@ -270,4 +270,3 @@ The refactoring is feasible with well-defined extraction points. Primary risk is
 4. Swap implementation in `render_node_network`
 5. Remove duplicate code
 6. Repeat for `VersionExporter`
-

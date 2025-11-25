@@ -12,34 +12,34 @@ from typing import Any, Callable, Optional
 
 class ReferenceStrategy(ABC):
     """Abstract base class for reference resolution strategies.
-    
+
     # AICODE-NOTE: Each strategy handles one type of reference pattern:
     # - MarkdownLinkStrategy: [text](path)
     # - Jinja2RefStrategy: {# ref: path #}
     # - StructuredRefStrategy: {"$ref": "path"}
-    
+
     The strategy pattern allows adding new reference types without modifying
     existing code (Open/Closed Principle).
     """
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """Strategy name for debugging and logging."""
         pass
-    
+
     @abstractmethod
     def can_process(self, content: Any) -> bool:
         """Check if this strategy can process the given content.
-        
+
         Args:
             content: Content to check (string or dict)
-            
+
         Returns:
             True if this strategy should process the content
         """
         pass
-    
+
     @abstractmethod
     def process_string(
         self,
@@ -49,18 +49,18 @@ class ReferenceStrategy(ABC):
         target_format: str,
     ) -> str:
         """Process string content and replace references.
-        
+
         Args:
             content: String content with potential references
             node_lookup: Function(path) -> ContextNode or None
             content_renderer: Function(node, format) -> rendered string
             target_format: Target output format (yaml, json, markdown)
-            
+
         Returns:
             Content with references replaced by resolved content
         """
         pass
-    
+
     @abstractmethod
     def process_structure(
         self,
@@ -70,13 +70,13 @@ class ReferenceStrategy(ABC):
         target_format: str,
     ) -> dict[str, Any]:
         """Process structured content (dict) and replace references.
-        
+
         Args:
             content: Dict content with potential $ref entries
             node_lookup: Function(path) -> ContextNode or None
             content_renderer: Function(node, format) -> rendered content
             target_format: Target output format
-            
+
         Returns:
             Content with $ref entries replaced by resolved content
         """
@@ -91,27 +91,27 @@ from typing import Any, Callable, Optional
 
 class MarkdownLinkStrategy(ReferenceStrategy):
     """Strategy for processing markdown link references [text](path).
-    
+
     # AICODE-NOTE: This strategy handles markdown-style links that reference
     # other files in the node network. External URLs (http://, https://, mailto:)
     # are preserved unchanged.
-    
+
     Pattern: \[([^\]]+)\]\(([^)]+)\)
     Example: [Instructions](instructions.md) -> content of instructions.md
     """
-    
+
     LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
     EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "#")
-    
+
     @property
     def name(self) -> str:
         return "markdown_link"
-    
+
     def can_process(self, content: Any) -> bool:
         if isinstance(content, str):
             return bool(self.LINK_PATTERN.search(content))
         return False
-    
+
     def process_string(
         self,
         content: str,
@@ -121,18 +121,18 @@ class MarkdownLinkStrategy(ReferenceStrategy):
     ) -> str:
         def replace_link(match: re.Match[str]) -> str:
             path = match.group(2)
-            
+
             # Preserve external links
             if path.startswith(self.EXTERNAL_PREFIXES):
                 return match.group(0)
-            
+
             node = node_lookup(path)
             if node:
                 return content_renderer(node, target_format)
             return match.group(0)
-        
+
         return self.LINK_PATTERN.sub(replace_link, content)
-    
+
     def process_structure(
         self,
         content: dict[str, Any],
@@ -152,25 +152,25 @@ from typing import Any, Callable, Optional
 
 class Jinja2RefStrategy(ReferenceStrategy):
     """Strategy for processing Jinja2-style reference comments.
-    
+
     # AICODE-NOTE: This strategy handles Jinja2 comment-style references
     # used for including external files in templates.
-    
+
     Pattern: \{\#\s*ref:\s*([^\#]+)\s*\#\}
     Example: {# ref: data.yaml #} -> content of data.yaml
     """
-    
+
     REF_PATTERN = re.compile(r"\{\#\s*ref:\s*([^\#]+)\s*\#\}", re.IGNORECASE)
-    
+
     @property
     def name(self) -> str:
         return "jinja2_ref"
-    
+
     def can_process(self, content: Any) -> bool:
         if isinstance(content, str):
             return bool(self.REF_PATTERN.search(content))
         return False
-    
+
     def process_string(
         self,
         content: str,
@@ -184,9 +184,9 @@ class Jinja2RefStrategy(ReferenceStrategy):
             if node:
                 return content_renderer(node, target_format)
             return match.group(0)
-        
+
         return self.REF_PATTERN.sub(replace_ref, content)
-    
+
     def process_structure(
         self,
         content: dict[str, Any],
@@ -205,23 +205,23 @@ from typing import Any, Callable, Optional
 
 class StructuredRefStrategy(ReferenceStrategy):
     """Strategy for processing JSON Schema-style $ref references.
-    
+
     # AICODE-NOTE: This strategy handles $ref objects in YAML/JSON content,
     # following the JSON Schema $ref convention.
-    
+
     Pattern: {"$ref": "path/to/file"}
     Example: {"data": {"$ref": "config.yaml"}} -> {"data": <config content>}
     """
-    
+
     @property
     def name(self) -> str:
         return "structured_ref"
-    
+
     def can_process(self, content: Any) -> bool:
         if isinstance(content, dict):
             return self._has_ref(content)
         return False
-    
+
     def _has_ref(self, data: dict[str, Any]) -> bool:
         """Recursively check if dict contains $ref."""
         for value in data.values():
@@ -235,7 +235,7 @@ class StructuredRefStrategy(ReferenceStrategy):
                     if isinstance(item, dict) and self._has_ref(item):
                         return True
         return False
-    
+
     def process_string(
         self,
         content: str,
@@ -245,7 +245,7 @@ class StructuredRefStrategy(ReferenceStrategy):
     ) -> str:
         # $ref is structure-based, not string-based
         return content
-    
+
     def process_structure(
         self,
         content: dict[str, Any],
@@ -254,7 +254,7 @@ class StructuredRefStrategy(ReferenceStrategy):
         target_format: str,
     ) -> dict[str, Any]:
         return self._replace_refs(content, node_lookup, content_renderer, target_format)
-    
+
     def _replace_refs(
         self,
         data: dict[str, Any],
@@ -297,24 +297,24 @@ from promptic.context.nodes.models import ContextNode, NodeNetwork
 
 class ReferenceInliner:
     """Service for inlining referenced content into nodes.
-    
+
     # AICODE-NOTE: This class consolidates all duplicate process_node_content
     # implementations from the original render_node_network function.
     # It orchestrates multiple strategies to handle different reference types.
-    
+
     Usage:
         inliner = ReferenceInliner()
         content = inliner.inline_references(node, network, "markdown")
     """
-    
+
     def __init__(self, strategies: list[ReferenceStrategy] | None = None):
         """Initialize with reference strategies.
-        
+
         Args:
             strategies: List of strategies to use. Defaults to all built-in strategies.
         """
         self.strategies = strategies or self._default_strategies()
-    
+
     def _default_strategies(self) -> list[ReferenceStrategy]:
         """Get default strategy instances."""
         return [
@@ -322,7 +322,7 @@ class ReferenceInliner:
             MarkdownLinkStrategy(),
             StructuredRefStrategy(),
         ]
-    
+
     def inline_references(
         self,
         node: ContextNode,
@@ -330,26 +330,26 @@ class ReferenceInliner:
         target_format: str,
     ) -> str | dict[str, Any]:
         """Inline all references in node content.
-        
+
         Args:
             node: Node to process
             network: Network containing all nodes for lookup
             target_format: Target output format (yaml, json, markdown, jinja2)
-            
+
         Returns:
             Content with references inlined (string for text formats, dict for structured)
         """
         content = node.content.copy()
-        
+
         # Create lookup function
         def node_lookup(path: str) -> Optional[ContextNode]:
             return self._find_node(path, network)
-        
+
         # Create content renderer
         def content_renderer(child_node: ContextNode, fmt: str) -> Any:
             # Recursively process child nodes
             return self.inline_references(child_node, network, fmt)
-        
+
         # Process based on content type
         if "raw_content" in content and isinstance(content["raw_content"], str):
             # Text content (markdown, jinja2)
@@ -369,10 +369,10 @@ class ReferenceInliner:
                         processed, node_lookup, content_renderer, target_format
                     )
             return processed
-    
+
     def _find_node(self, path: str, network: NodeNetwork) -> Optional[ContextNode]:
         """Find node in network by path.
-        
+
         # AICODE-NOTE: This consolidates the duplicate node lookup logic
         # that was repeated 12+ times in render_node_network.
         """
@@ -482,12 +482,12 @@ def render_node_network(
     if vars:
         network = network.model_copy(deep=True)
         _apply_variables_to_network(network, vars)
-    
+
     # Fast path: file_first mode with same format
     if render_mode == "file_first" and network.root.format == target_format:
         if "raw_content" in network.root.content:
             return str(network.root.content["raw_content"])
-    
+
     # Full mode: use ReferenceInliner
     if render_mode == "full" and network.root.references:
         inliner = ReferenceInliner()
@@ -495,10 +495,9 @@ def render_node_network(
             network.root, network, target_format
         )
         return _format_output(inlined_content, target_format, network.root.format)
-    
+
     # Default: render root node
     return render_node(network.root, target_format)
 ```
 
 This reduces the function from ~750 lines to ~30 lines.
-
