@@ -25,7 +25,7 @@ class VariableSubstitutor:
     # - Markers are replaced with string values (no type preservation)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize variable substitutor with scope resolver."""
         self.resolver = ScopeResolver()
 
@@ -99,7 +99,7 @@ class VariableSubstitutor:
                 # Variable not defined, keep marker unchanged
                 return match.group(0)
 
-        return self._marker_pattern.sub(replace_marker, content)
+        return str(self._marker_pattern.sub(replace_marker, content))
 
     def _substitute_jinja2(self, content: str, variables: dict[str, Any]) -> str:
         """Substitute variables in Jinja2 template using Jinja2 engine.
@@ -125,7 +125,7 @@ class VariableSubstitutor:
             # Undefined variables are rendered as empty strings with debug info
             # This matches the graceful degradation behavior of marker substitution
             template = Template(content, undefined=DebugUndefined)
-            return template.render(**variables)
+            return str(template.render(**variables))
         except ImportError as e:
             # AICODE-NOTE: Jinja2 should always be available (it's in dependencies)
             # But gracefully handle import errors just in case

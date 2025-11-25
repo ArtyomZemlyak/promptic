@@ -19,7 +19,7 @@ Successfully implemented variable insertion functionality for the promptic libra
 
 **Location**: `src/promptic/context/variables/`
 
-- **models.py**: 
+- **models.py**:
   - `VariableScope` enum (SIMPLE, NODE, PATH)
   - `SubstitutionContext` dataclass
 
@@ -62,16 +62,24 @@ Successfully implemented variable insertion functionality for the promptic libra
 
 **Test Results**: 25/25 tests passing ✅
 
-### 5. Example 7 ✅
+### 5. Example 7 & 8 ✅
 
-**Location**: `examples/get_started/7-variable-insertion/`
+**Location**: `examples/get_started/`
 
-Complete working example demonstrating:
-- Simple scope (global variables)
-- Node scope (targeting by node name)
-- Path scope (hierarchical targeting)
-- File-first mode with variables
-- All four scenarios run successfully
+- **7-variable-insertion/**:
+  Complete working example demonstrating:
+  - Simple scope (global variables)
+  - Node scope (targeting by node name)
+  - Path scope (hierarchical targeting)
+  - File-first mode with variables (root node only)
+  - All four scenarios run successfully
+
+- **8-export-variables/**:
+  Complete working example demonstrating:
+  - Variable insertion in export (file-first) mode
+  - Substitution in referenced files
+  - Hierarchical path scoping in exported files
+
 
 **Files**:
 - `README.md`: Example documentation
@@ -168,15 +176,13 @@ Applies `{{style}}` only at specific hierarchical path.
 
 1. **Full render mode**: Variable substitution happens at the root level after all nodes are inlined. This means node-scoped and path-scoped variables may not work as expected in full render mode if the nested content was already inlined before substitution.
 
-2. **File-first mode**: Variables are only substituted in the root node content, not in referenced files.
+2. **File-first mode (render)**: Variables are only substituted in the root node content, not in referenced files (because the result is a single string). For complete directory export with variables, use `export_version`.
 
-3. **Export function**: Variable support for `export_version()` not yet implemented (planned for future).
-
-These limitations are acceptable for the initial implementation and can be addressed in future iterations by applying variable substitution during the inlining process rather than after.
+These limitations are acceptable for the initial implementation. The full render mode limitation can be addressed in future iterations by applying variable substitution during the inlining process rather than after.
 
 ## Files Changed/Created
 
-### New Files (13):
+### New Files (14):
 1. `src/promptic/context/variables/__init__.py`
 2. `src/promptic/context/variables/models.py`
 3. `src/promptic/context/variables/resolver.py`
@@ -239,11 +245,11 @@ output = render_node_network(
         # Simple scope (global)
         "user_name": "Alice",
         "task_type": "analysis",
-        
+
         # Node scope (specific nodes)
         "instructions.format": "detailed",
         "templates.level": "advanced",
-        
+
         # Path scope (specific hierarchy position)
         "root.group.instructions.style": "technical",
         "root.templates.details.verbosity": "high"
@@ -265,10 +271,9 @@ print(output)
 ## Next Steps (Future Work)
 
 1. **Integration with full render mode**: Apply variable substitution to each node before inlining
-2. **Export function support**: Add `vars` parameter to `export_version()`
-3. **Performance optimization**: Cache compiled regex patterns
-4. **Additional validation**: More comprehensive variable name validation
-5. **Integration tests**: Add integration tests to test suite
+2. **Performance optimization**: Cache compiled regex patterns
+3. **Additional validation**: More comprehensive variable name validation
+4. **Integration tests**: Add integration tests to test suite
 
 ## Conclusion
 

@@ -162,10 +162,10 @@ class SubstitutionContext:
 
 - **Risk**: Variable syntax conflicts with existing content (e.g., literal `{{text}}` in prompts)
   - **Mitigation**: Document escape mechanism, provide clear error messages, validate variable names
-  
+
 - **Risk**: Performance degradation with many variables in large hierarchies
   - **Mitigation**: Compile variable patterns once, use efficient string methods, benchmark with 1000-node hierarchies
-  
+
 - **Risk**: Jinja2 variable syntax differs from custom markers, causing confusion
   - **Mitigation**: Clear documentation showing Jinja2 uses native `{{ var }}`, others use `{{var}}`, provide examples for each
 

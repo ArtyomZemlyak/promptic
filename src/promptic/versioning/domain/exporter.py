@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Lazy import to avoid circular dependency
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from promptic.versioning.adapters.scanner import VersionedFileScanner
 from promptic.versioning.domain.errors import ExportDirectoryExistsError, ExportError
@@ -71,6 +71,7 @@ class VersionExporter:
         version_spec: VersionSpec,
         target_dir: str,
         overwrite: bool = False,
+        vars: Optional[dict[str, Any]] = None,
     ) -> ExportResult:
         """
         Export complete version snapshot of prompt hierarchy.
@@ -80,12 +81,14 @@ class VersionExporter:
         # - Resolves path references in file content to work in exported structure
         # - Atomic export: either all files export successfully or nothing is exported
         # - Returns root prompt content with resolved paths for immediate use
+        # - Supports variable substitution via vars parameter
 
         Args:
             source_path: Source prompt hierarchy path
             version_spec: Version specification ("latest", "v1", or hierarchical dict)
             target_dir: Target export directory
             overwrite: Whether to overwrite existing target directory
+            vars: Optional variables for substitution
 
         Returns:
             ExportResult with root prompt content and exported files
@@ -94,6 +97,8 @@ class VersionExporter:
             ExportError: If export fails (missing files, permission errors)
             ExportDirectoryExistsError: If target directory exists without overwrite
         """
+        from typing import Any  # Ensure Any is available
+
         source = Path(source_path)
         target = Path(target_dir)
 
@@ -121,6 +126,11 @@ class VersionExporter:
                 missing_files=[resolved_root],
                 message=f"Root prompt not found: {resolved_root}",
             )
+
+        # Build hierarchical path map if vars are present
+        hierarchical_paths = {}
+        if vars:
+            hierarchical_paths = self._build_hierarchical_paths(str(root_path))
 
         # Discover all files with the same version (recursive scan)
         source_base = source if source.is_dir() else source.parent
@@ -201,6 +211,61 @@ class VersionExporter:
                 if str(versioned_path) not in file_mapping:
                     file_mapping[str(versioned_path)] = str(target_file)
 
+        # Ensure root file is included in export
+        # (It might have been skipped if unversioned and not referenced by itself)
+        root_version_suffix = self._extract_version_from_path(root_path)
+        if root_version_suffix:
+            root_target_name = root_path.name.replace(root_version_suffix, "")
+        else:
+            root_target_name = root_path.name
+
+        root_target_path = target / root_target_name
+        if str(root_path) not in file_mapping:
+            file_mapping[str(root_path)] = str(root_target_path)
+
+        # Define content processor
+        def content_processor(path: Path, content: str) -> str:
+            # 1. Resolve paths (crucial for exported structure validity)
+            resolved = self.filesystem_exporter.resolve_paths_in_file(
+                content, file_mapping, str(source_base), str(target)
+            )
+
+            # 2. Substitute variables if provided
+            if vars:
+                from promptic.context.variables import SubstitutionContext, VariableSubstitutor
+
+                node_id = str(path)
+                node_name = path.stem
+                # Remove version suffix from node name if present
+                version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", node_name)
+                if version_match:
+                    node_name = node_name.replace(version_match.group(0), "")
+
+                hier_path = hierarchical_paths.get(str(path), node_name)
+
+                # Detect format
+                ext = path.suffix.lower()
+                fmt = "markdown"
+                if ext in {".yaml", ".yml"}:
+                    fmt = "yaml"
+                elif ext == ".json":
+                    fmt = "json"
+                elif ext in {".jinja", ".jinja2"}:
+                    fmt = "jinja2"
+
+                context = SubstitutionContext(
+                    node_id=node_id,
+                    node_name=node_name,
+                    hierarchical_path=hier_path,
+                    content=resolved,
+                    format=fmt,
+                    variables=vars,
+                )
+                substitutor = VariableSubstitutor()
+                return substitutor.substitute(context)
+
+            return resolved
+
         # Export files (atomic operation)
         try:
             exported_files = self.filesystem_exporter.export_files(
@@ -208,13 +273,25 @@ class VersionExporter:
                 str(target),
                 preserve_structure=True,
                 file_mapping=file_mapping,
+                content_processor=content_processor,
             )
 
-            # Resolve paths in root prompt content
-            root_content = root_path.read_text(encoding="utf-8")
-            resolved_content = self.filesystem_exporter.resolve_paths_in_file(
-                root_content, file_mapping, str(source_base), str(target)
-            )
+            # The root prompt is included in exported_files.
+            # We return its content as processed.
+            # We can re-read the exported root file to get the final content with vars and paths.
+
+            # Find where root_path was exported to
+            exported_root_path = None
+            if str(root_path) in file_mapping:
+                exported_root_path = file_mapping[str(root_path)]
+
+            if exported_root_path and Path(exported_root_path).exists():
+                resolved_content = Path(exported_root_path).read_text(encoding="utf-8")
+            else:
+                # Fallback: process manually if for some reason it wasn't exported (shouldn't happen)
+                resolved_content = content_processor(
+                    root_path, root_path.read_text(encoding="utf-8")
+                )
 
             log_version_operation(
                 logger,
@@ -247,6 +324,77 @@ class VersionExporter:
                 missing_files=[],
                 message=f"Export failed: {e}",
             ) from e
+
+    def _build_hierarchical_paths(self, root_path: str) -> dict[str, str]:
+        """
+        Build hierarchical path mapping for files in the prompt network.
+
+        Args:
+            root_path: Path to root prompt file
+
+        Returns:
+            Dictionary mapping absolute file paths to hierarchical dot-notation paths
+            e.g. {"/abs/path/child.md": "root.child"}
+        """
+        hierarchical_paths: dict[str, str] = {}
+
+        # Helper to extract clean node name
+        def get_node_name(path: Path) -> str:
+            stem = path.stem
+            # Remove version suffix
+            version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", stem)
+            if version_match:
+                return stem.replace(version_match.group(0), "")
+            return stem
+
+        root = Path(root_path)
+        if not root.exists():
+            return {}
+
+        root_name = get_node_name(root)
+        hierarchical_paths[str(root.resolve())] = root_name
+
+        # Queue: (current_path, current_hier_path)
+        to_process: list[tuple[Path, str]] = [(root, root_name)]
+        processed: set[str] = set()
+
+        while to_process:
+            current_path, current_hier_path = to_process.pop(0)
+            if str(current_path) in processed:
+                continue
+            processed.add(str(current_path))
+
+            try:
+                content = current_path.read_text(encoding="utf-8")
+
+                base_dir = current_path.parent
+
+                # Find references
+                refs = []
+                # Markdown links
+                for match in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content):
+                    ref_str = match.group(2)
+                    if not ref_str.startswith(("http://", "https://", "#")):
+                        refs.append(ref_str)
+
+                # Include directives
+                for match in re.finditer(
+                    r"(?:@include|include:)\s*\(?([^)]+)\)?", content, re.IGNORECASE
+                ):
+                    refs.append(match.group(1).strip())
+
+                for ref_str in refs:
+                    resolved = (base_dir / ref_str).resolve()
+                    if resolved.exists() and resolved.is_file():
+                        if str(resolved) not in hierarchical_paths:
+                            child_name = get_node_name(resolved)
+                            child_hier_path = f"{current_hier_path}.{child_name}"
+                            hierarchical_paths[str(resolved)] = child_hier_path
+                            to_process.append((resolved, child_hier_path))
+            except Exception:
+                continue
+
+        return hierarchical_paths
 
     def discover_versioned_files(self, source_dir: str, version_spec: VersionSpec) -> list[str]:
         """

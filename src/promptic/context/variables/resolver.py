@@ -20,7 +20,7 @@ class ScopeResolver:
     # Within the same scope, the first matching variable definition is used.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize scope resolver with variable name pattern."""
         # AICODE-NOTE: Variable names must be valid identifiers: letters, numbers, underscores
         # No spaces or special characters except underscore
