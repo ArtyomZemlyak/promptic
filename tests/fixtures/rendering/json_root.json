@@ -1,0 +1,7 @@
+{
+  "name": "Root JSON File",
+  "data": {
+    "$ref": "data.json"
+  }
+}
+

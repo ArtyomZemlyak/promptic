@@ -1,0 +1,5 @@
+title: Root YAML File
+description: Tests $ref references
+config:
+  $ref: config.yaml
+

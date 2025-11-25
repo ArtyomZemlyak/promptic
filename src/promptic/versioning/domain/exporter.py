@@ -76,12 +76,11 @@ class VersionExporter:
         """
         Export complete version snapshot of prompt hierarchy.
 
-        # AICODE-NOTE: Export structure and behavior:
-        # - Preserves hierarchical directory structure (not flattened)
-        # - Resolves path references in file content to work in exported structure
-        # - Atomic export: either all files export successfully or nothing is exported
-        # - Returns root prompt content with resolved paths for immediate use
-        # - Supports variable substitution via vars parameter
+        # AICODE-NOTE: This method orchestrates the export process using helper methods:
+        # 1. _validate_and_resolve_root() - validates target and resolves root file
+        # 2. _build_file_mapping() - builds source->target file mapping
+        # 3. _create_content_processor() - creates processor for path resolution and vars
+        # 4. _execute_export() - performs atomic export with cleanup on failure
 
         Args:
             source_path: Source prompt hierarchy path
@@ -97,21 +96,58 @@ class VersionExporter:
             ExportError: If export fails (missing files, permission errors)
             ExportDirectoryExistsError: If target directory exists without overwrite
         """
-        from typing import Any  # Ensure Any is available
-
-        source = Path(source_path)
         target = Path(target_dir)
 
         log_version_operation(
-            logger,
-            "export_started",
-            version=str(version_spec),
-            path=source_path,
-            target=target_dir,
+            logger, "export_started", version=str(version_spec), path=source_path, target=target_dir
         )
 
         # Validate export target
         self.filesystem_exporter.validate_export_target(str(target), overwrite)
+
+        # Step 1: Validate and resolve root
+        resolved_root, source_base = self._validate_and_resolve_root(
+            source_path, version_spec, target
+        )
+        root_path = Path(resolved_root)
+
+        # Step 2: Build hierarchical paths if vars present
+        hierarchical_paths = self._build_hierarchical_paths(str(root_path)) if vars else {}
+
+        # Step 3: Build file mapping
+        file_mapping = self._build_file_mapping(root_path, source_base, target, version_spec)
+
+        # Step 4: Create content processor
+        content_processor = self._create_content_processor(
+            file_mapping, str(source_base), str(target), vars, hierarchical_paths
+        )
+
+        # Step 5: Execute export
+        return self._execute_export(file_mapping, target, root_path, content_processor)
+
+    def _validate_and_resolve_root(
+        self, source_path: str, version_spec: VersionSpec, target: Path
+    ) -> tuple[str, Path]:
+        """
+        Validate export target and resolve root prompt file.
+
+        # AICODE-NOTE: This method handles:
+        # - Resolving directory sources to versioned files via version_resolver
+        # - Validating that the resolved root file exists
+        # - Determining the source_base for relative path calculations
+
+        Args:
+            source_path: Source path (file or directory)
+            version_spec: Version specification
+            target: Target export directory
+
+        Returns:
+            Tuple of (resolved_root_path, source_base_path)
+
+        Raises:
+            ExportError: If root file cannot be found
+        """
+        source = Path(source_path)
 
         # Resolve root prompt version
         if source.is_dir():
@@ -127,24 +163,42 @@ class VersionExporter:
                 message=f"Root prompt not found: {resolved_root}",
             )
 
-        # Build hierarchical path map if vars are present
-        hierarchical_paths = {}
-        if vars:
-            hierarchical_paths = self._build_hierarchical_paths(str(root_path))
+        # source_base must be resolved to absolute path for consistent relative path calculations
+        source_base = (source if source.is_dir() else source.parent).resolve()
 
-        # Discover all files with the same version (recursive scan)
-        source_base = source if source.is_dir() else source.parent
-        all_versioned_files = self.discover_versioned_files(str(source_base), version_spec)
+        return resolved_root, source_base
 
-        # Build file mapping (source -> target) preserving structure
+    def _build_file_mapping(
+        self,
+        root_path: Path,
+        source_base: Path,
+        target: Path,
+        version_spec: VersionSpec,
+    ) -> dict[str, str]:
+        """
+        Build source->target file mapping preserving directory structure.
+
+        # AICODE-NOTE: File mapping strategy:
+        # 1. Discover explicitly referenced files first (take precedence)
+        # 2. Add all versioned files, skipping conflicts with explicit refs
+        # 3. Ensure root file is always included
+        # 4. Remove version suffixes from target filenames
+
+        Args:
+            root_path: Path to resolved root file
+            source_base: Base directory for relative path calculation
+            target: Target export directory
+            version_spec: Version specification for discovery
+
+        Returns:
+            Dictionary mapping source paths to target paths
+        """
         file_mapping: dict[str, str] = {}
+        referenced_base_names: dict[str, str] = {}
 
-        # AICODE-NOTE: First, discover all explicitly referenced files from the root prompt
-        # This ensures that explicit version references take precedence over automatic version resolution
+        # Discover all versioned files and explicitly referenced files
+        all_versioned_files = self.discover_versioned_files(str(source_base), version_spec)
         referenced_files = self.discover_referenced_files(str(root_path))
-        referenced_base_names: dict[str, str] = (
-            {}
-        )  # Maps base name (without version) to actual referenced file
 
         # Process explicitly referenced files first
         for ref_file in referenced_files:
@@ -157,77 +211,93 @@ class VersionExporter:
             except ValueError:
                 continue
 
-            # Check if this is a versioned file
             version_suffix = self._extract_version_from_path(ref_path)
             if version_suffix:
-                # This is an explicit reference to a versioned file
-                # Keep the version suffix in the target name
                 target_ref_file = target / ref_relative
                 file_mapping[str(ref_path)] = str(target_ref_file)
-
-                # Remember the base name (without version) to avoid adding automatic version
                 base_name = ref_path.name.replace(version_suffix, "")
                 base_path = ref_relative.parent / base_name
                 referenced_base_names[str(base_path)] = str(ref_path)
             else:
-                # Non-versioned file reference - add as is
                 target_ref_file = target / ref_relative
                 if str(ref_path) not in file_mapping:
                     file_mapping[str(ref_path)] = str(target_ref_file)
 
-        # Now add all versioned files, but skip those that have explicit references
+        # Add versioned files, skipping explicit reference conflicts
         for versioned_file in all_versioned_files:
             versioned_path = Path(versioned_file)
-            if versioned_path.exists():
-                # Get relative path to preserve directory structure
-                try:
-                    versioned_relative = versioned_path.relative_to(source_base)
-                except ValueError:
-                    # File is outside source_base, skip
+            if not versioned_path.exists():
+                continue
+
+            try:
+                versioned_relative = versioned_path.relative_to(source_base)
+            except ValueError:
+                continue
+
+            version_suffix = self._extract_version_from_path(versioned_path)
+            new_name = (
+                versioned_path.name.replace(version_suffix, "")
+                if version_suffix
+                else versioned_path.name
+            )
+
+            if versioned_relative.parent != Path("."):
+                target_file = target / versioned_relative.parent / new_name
+                base_path = versioned_relative.parent / new_name
+            else:
+                target_file = target / new_name
+                base_path = Path(new_name)
+
+            if str(base_path) in referenced_base_names:
+                if referenced_base_names[str(base_path)] != str(versioned_path):
                     continue
 
-                # Remove version suffix from filename
-                version_suffix = self._extract_version_from_path(versioned_path)
-                if version_suffix:
-                    new_name = versioned_path.name.replace(version_suffix, "")
-                else:
-                    new_name = versioned_path.name
+            if str(versioned_path) not in file_mapping:
+                file_mapping[str(versioned_path)] = str(target_file)
 
-                # Preserve subdirectory structure
-                if versioned_relative.parent != Path("."):
-                    target_file = target / versioned_relative.parent / new_name
-                    base_path = versioned_relative.parent / new_name
-                else:
-                    target_file = target / new_name
-                    base_path = Path(new_name)
-
-                # Skip if there's an explicit reference to a different version of this file
-                if str(base_path) in referenced_base_names:
-                    if referenced_base_names[str(base_path)] != str(versioned_path):
-                        # There's an explicit reference to a different version - skip this one
-                        continue
-
-                # Add to file mapping if not already present
-                if str(versioned_path) not in file_mapping:
-                    file_mapping[str(versioned_path)] = str(target_file)
-
-        # Ensure root file is included in export
-        # (It might have been skipped if unversioned and not referenced by itself)
+        # Ensure root file is included
         root_version_suffix = self._extract_version_from_path(root_path)
-        if root_version_suffix:
-            root_target_name = root_path.name.replace(root_version_suffix, "")
-        else:
-            root_target_name = root_path.name
-
+        root_target_name = (
+            root_path.name.replace(root_version_suffix, "")
+            if root_version_suffix
+            else root_path.name
+        )
         root_target_path = target / root_target_name
         if str(root_path) not in file_mapping:
             file_mapping[str(root_path)] = str(root_target_path)
 
-        # Define content processor
+        return file_mapping
+
+    def _create_content_processor(
+        self,
+        file_mapping: dict[str, str],
+        source_base: str,
+        target: str,
+        vars: Optional[dict[str, Any]],
+        hierarchical_paths: dict[str, str],
+    ):
+        """
+        Create content processor function for path resolution and variable substitution.
+
+        # AICODE-NOTE: The content processor performs two operations:
+        # 1. Path resolution - updates file references for exported structure
+        # 2. Variable substitution - replaces {{var}} placeholders if vars provided
+
+        Args:
+            file_mapping: Source to target path mapping
+            source_base: Source base directory
+            target: Target directory
+            vars: Optional variables for substitution
+            hierarchical_paths: Hierarchical path mapping for nodes
+
+        Returns:
+            Callable that processes file content
+        """
+
         def content_processor(path: Path, content: str) -> str:
-            # 1. Resolve paths (crucial for exported structure validity)
+            # 1. Resolve paths
             resolved = self.filesystem_exporter.resolve_paths_in_file(
-                content, file_mapping, str(source_base), str(target)
+                content, file_mapping, source_base, target
             )
 
             # 2. Substitute variables if provided
@@ -236,14 +306,12 @@ class VersionExporter:
 
                 node_id = str(path)
                 node_name = path.stem
-                # Remove version suffix from node name if present
                 version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", node_name)
                 if version_match:
                     node_name = node_name.replace(version_match.group(0), "")
 
                 hier_path = hierarchical_paths.get(str(path), node_name)
 
-                # Detect format
                 ext = path.suffix.lower()
                 fmt = "markdown"
                 if ext in {".yaml", ".yml"}:
@@ -266,7 +334,35 @@ class VersionExporter:
 
             return resolved
 
-        # Export files (atomic operation)
+        return content_processor
+
+    def _execute_export(
+        self,
+        file_mapping: dict[str, str],
+        target: Path,
+        root_path: Path,
+        content_processor,
+    ) -> ExportResult:
+        """
+        Execute atomic export operation with cleanup on failure.
+
+        # AICODE-NOTE: Atomic export behavior:
+        # - All files must export successfully or nothing is exported
+        # - On failure, target directory is removed (best-effort cleanup)
+        # - Returns ExportResult with processed root content
+
+        Args:
+            file_mapping: Source to target path mapping
+            target: Target directory
+            root_path: Root prompt file path
+            content_processor: Function to process file content
+
+        Returns:
+            ExportResult with exported files and root content
+
+        Raises:
+            ExportError: If export fails
+        """
         try:
             exported_files = self.filesystem_exporter.export_files(
                 list(file_mapping.keys()),
@@ -276,19 +372,11 @@ class VersionExporter:
                 content_processor=content_processor,
             )
 
-            # The root prompt is included in exported_files.
-            # We return its content as processed.
-            # We can re-read the exported root file to get the final content with vars and paths.
-
-            # Find where root_path was exported to
-            exported_root_path = None
-            if str(root_path) in file_mapping:
-                exported_root_path = file_mapping[str(root_path)]
-
+            # Read processed root content
+            exported_root_path = file_mapping.get(str(root_path))
             if exported_root_path and Path(exported_root_path).exists():
                 resolved_content = Path(exported_root_path).read_text(encoding="utf-8")
             else:
-                # Fallback: process manually if for some reason it wasn't exported (shouldn't happen)
                 resolved_content = content_processor(
                     root_path, root_path.read_text(encoding="utf-8")
                 )
@@ -296,8 +384,8 @@ class VersionExporter:
             log_version_operation(
                 logger,
                 "export_completed",
-                version=str(version_spec),
-                path=source_path,
+                version="",
+                path=str(root_path),
                 exported_count=len(exported_files),
             )
 
@@ -308,7 +396,7 @@ class VersionExporter:
             )
 
         except Exception as e:
-            # Atomic export: if anything fails, clean up and raise error
+            # Atomic export: clean up on failure
             if target.exists():
                 import shutil
 
@@ -320,7 +408,7 @@ class VersionExporter:
             if isinstance(e, (ExportError, ExportDirectoryExistsError)):
                 raise
             raise ExportError(
-                source_path=source_path,
+                source_path=str(root_path),
                 missing_files=[],
                 message=f"Export failed: {e}",
             ) from e

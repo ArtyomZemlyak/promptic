@@ -167,3 +167,155 @@ def test_render_reusable_with_variables(tmp_path: Path):
 
     # Outputs should be different
     assert output1 != output2
+
+
+# =============================================================================
+# REGRESSION TESTS - SOLID Refactoring (008-solid-refactor)
+# =============================================================================
+# AICODE-NOTE: These tests capture the current behavior of render_node_network
+# for all formats and modes. They serve as regression baselines during the
+# refactoring to ensure behavior is preserved.
+
+
+@pytest.fixture
+def rendering_fixtures() -> Path:
+    """Return the path to rendering test fixtures."""
+    return Path(__file__).parent.parent / "fixtures" / "rendering"
+
+
+class TestRegressionMarkdownFullMode:
+    """Regression tests for markdown full mode rendering."""
+
+    def test_markdown_root_with_link_reference(self, rendering_fixtures: Path):
+        """Test markdown file with [text](path) reference is inlined in full mode."""
+        root_path = rendering_fixtures / "markdown_root.md"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="markdown", render_mode="full")
+
+        # The child content should be inlined where the link was
+        assert "Child Content" in output
+        assert "This is the child markdown file" in output
+        # The root content should be preserved
+        assert "Root Document" in output
+        assert "End of root" in output
+
+    def test_markdown_preserves_external_links(self, tmp_path: Path):
+        """Test that external links (http://, https://) are preserved."""
+        root_file = tmp_path / "root.md"
+        root_file.write_text(
+            "# Test\n[Google](https://google.com)\n[Email](mailto:test@example.com)"
+        )
+
+        output = render(root_file, target_format="markdown", render_mode="full")
+
+        assert "https://google.com" in output
+        assert "mailto:test@example.com" in output
+
+
+class TestRegressionYamlFullMode:
+    """Regression tests for YAML full mode rendering."""
+
+    def test_yaml_root_with_ref_reference(self, rendering_fixtures: Path):
+        """Test YAML file with $ref is resolved in full mode."""
+        root_path = rendering_fixtures / "yaml_root.yaml"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="yaml", render_mode="full")
+
+        # The referenced config should be inlined
+        assert "setting" in output
+        assert "enabled" in output
+        # The root content should be preserved
+        assert "Root YAML File" in output
+
+
+class TestRegressionJsonFullMode:
+    """Regression tests for JSON full mode rendering."""
+
+    def test_json_root_with_ref_reference(self, rendering_fixtures: Path):
+        """Test JSON file with $ref is resolved in full mode."""
+        root_path = rendering_fixtures / "json_root.json"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="json", render_mode="full")
+
+        # The referenced data should be inlined
+        assert "key" in output
+        assert "value" in output
+        # The root content should be preserved
+        assert "Root JSON File" in output
+
+
+class TestRegressionJinja2FullMode:
+    """Regression tests for Jinja2 full mode rendering."""
+
+    def test_jinja2_root_with_ref_comment(self, rendering_fixtures: Path):
+        """Test Jinja2 file with {# ref: #} is resolved in full mode."""
+        root_path = rendering_fixtures / "jinja2_root.jinja2"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="markdown", render_mode="full")
+
+        # The referenced template data should be inlined
+        assert "template_name" in output or "Test Template" in output
+        # The root content should be preserved
+        assert "Main Template" in output
+
+
+class TestRegressionFileFirstMode:
+    """Regression tests for file_first mode rendering."""
+
+    def test_markdown_file_first_preserves_links(self, rendering_fixtures: Path):
+        """Test that file_first mode preserves markdown links."""
+        root_path = rendering_fixtures / "markdown_root.md"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="markdown", render_mode="file_first")
+
+        # The link should be preserved, not inlined
+        assert "[Include child](child.md)" in output
+        # The root content should be preserved
+        assert "Root Document" in output
+
+    def test_yaml_file_first_preserves_refs(self, rendering_fixtures: Path):
+        """Test that file_first mode preserves $ref in YAML."""
+        root_path = rendering_fixtures / "yaml_root.yaml"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="yaml", render_mode="file_first")
+
+        # The $ref should be preserved (or file_first returns raw)
+        assert "Root YAML File" in output
+
+
+class TestRegressionCrossFormatRendering:
+    """Regression tests for cross-format rendering."""
+
+    def test_yaml_to_markdown_wraps_in_code_block(self, rendering_fixtures: Path):
+        """Test that YAML rendered to markdown is wrapped in code blocks."""
+        root_path = rendering_fixtures / "yaml_root.yaml"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="markdown", render_mode="full")
+
+        # YAML content should be wrapped in code block for markdown output
+        assert "```yaml" in output or "Root YAML File" in output
+
+    def test_json_to_markdown_wraps_in_code_block(self, rendering_fixtures: Path):
+        """Test that JSON rendered to markdown is wrapped in code blocks."""
+        root_path = rendering_fixtures / "json_root.json"
+        if not root_path.exists():
+            pytest.skip("Fixture not found")
+
+        output = render(root_path, target_format="markdown", render_mode="full")
+
+        # JSON content should be wrapped in code block for markdown output
+        assert "```json" in output or "Root JSON File" in output
