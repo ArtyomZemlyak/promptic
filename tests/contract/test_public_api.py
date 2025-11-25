@@ -11,6 +11,7 @@ def test_public_api_exports_only_expected_functions():
     """Test that __all__ contains only expected exports after cleanup."""
     expected_exports = {
         "__version__",
+        "render",
         "load_prompt",
         "export_version",
         "cleanup_exported_version",
@@ -52,6 +53,9 @@ def test_expected_functions_are_accessible():
     # Test that expected functions exist and are callable
     assert hasattr(promptic, "__version__")
     assert isinstance(promptic.__version__, str)
+
+    assert hasattr(promptic, "render")
+    assert callable(promptic.render)
 
     assert hasattr(promptic, "load_prompt")
     assert callable(promptic.load_prompt)

@@ -19,7 +19,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from promptic.sdk.api import cleanup_exported_version, export_version, load_prompt
+from promptic.sdk.api import cleanup_exported_version, export_version, load_prompt, render
 
 try:  # pragma: no cover - best effort for local development
     __version__ = version("promptic")
@@ -28,6 +28,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "__version__",
+    "render",
     "cleanup_exported_version",
     "export_version",
     "load_prompt",

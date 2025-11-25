@@ -5,13 +5,18 @@
 #              render_instruction, bootstrap_runtime, build_materializer) have been removed.
 #              Only versioning functions remain: load_prompt, export_version, cleanup_exported_version.
 #              These functions provide version-aware prompt loading and export capabilities.
+#
+#              Added render() function that combines load_node_network + render_node_network
+#              for simplified one-step rendering from file paths.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Optional
 
+from promptic.context.nodes.models import NetworkConfig
+from promptic.sdk.nodes import load_node_network, render_node_network
 from promptic.versioning import (
     ExportResult,
     HierarchicalVersionResolver,
@@ -21,6 +26,83 @@ from promptic.versioning import (
     VersionResolver,
     VersionSpec,
 )
+
+
+def render(
+    path: str | Path,
+    *,
+    target_format: Literal["yaml", "markdown", "json", "jinja2"] = "markdown",
+    render_mode: Literal["full", "file_first"] = "full",
+    vars: dict[str, Any] | None = None,
+    config: NetworkConfig | None = None,
+    version: Optional[VersionSpec] = None,
+) -> str:
+    """
+    Load and render a prompt file in one convenient function call.
+
+    # AICODE-NOTE: This is the main entry point for promptic. It combines
+    # load_node_network() and render_node_network() into a single convenient
+    # function that handles the most common use case: loading a file and
+    # rendering it to a target format with optional variable substitution.
+
+    This function provides the complete promptic workflow:
+    1. Load the file and build a node network (with reference resolution)
+    2. Render the network to the target format with variable substitution
+
+    Args:
+        path: Path to the prompt file to render (markdown, yaml, json, jinja2)
+        target_format: Target output format (default: "markdown")
+            - "markdown": Markdown format
+            - "yaml": YAML format
+            - "json": JSON format
+            - "jinja2": Jinja2 template format
+        render_mode: Rendering mode (default: "full")
+            - "full": Inline all referenced content at reference locations
+            - "file_first": Preserve file references as links
+        vars: Optional variables for substitution with scoping support:
+            - Simple: {"var": "value"} - applies to all nodes
+            - Node-scoped: {"node_name.var": "value"} - applies to specific nodes
+            - Path-scoped: {"root.group.node.var": "value"} - applies at specific path
+        config: Optional network configuration (max_depth, size limits)
+        version: Optional version specification for version-aware loading
+
+    Returns:
+        Rendered content as string in the target format
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        FormatDetectionError: If format cannot be detected
+        FormatParseError: If parsing fails
+        NodeNetworkValidationError: If network validation fails (cycles, depth)
+
+    Example:
+        >>> # Simple: render markdown file with all references inlined
+        >>> output = render("prompts/task.md")
+        >>> print(output)
+
+        >>> # With variables
+        >>> output = render(
+        ...     "prompts/task.md",
+        ...     vars={"user_name": "Alice", "task_type": "analysis"}
+        ... )
+
+        >>> # Convert to different format with file-first mode
+        >>> yaml_output = render(
+        ...     "prompts/task.md",
+        ...     target_format="yaml",
+        ...     render_mode="file_first"
+        ... )
+
+        >>> # With version specification
+        >>> output = render("prompts/task.md", version="v1.0.0")
+    """
+    # Load the node network from file
+    network = load_node_network(root_path=path, config=config, version=version)
+
+    # Render the network to target format
+    return render_node_network(
+        network=network, target_format=target_format, render_mode=render_mode, vars=vars
+    )
 
 
 def load_prompt(
@@ -147,6 +229,7 @@ def cleanup_exported_version(export_dir: str | Path, *, require_confirmation: bo
 
 
 __all__ = [
+    "render",
     "load_prompt",
     "export_version",
     "cleanup_exported_version",
