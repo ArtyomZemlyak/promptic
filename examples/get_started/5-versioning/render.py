@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Example 5: Load specific versions of prompts.
+"""Example 5: Load and render specific versions of prompts.
 
-This script demonstrates how to load specific versions of prompts from a
+This script demonstrates how to load and render specific versions of prompts from a
 hierarchical directory structure with versioned markdown files.
+
+You can use either load_prompt() for simple loading or render() for full rendering
+with variable substitution and format conversion.
 
 Usage:
     python render.py
@@ -19,11 +22,11 @@ src_path = project_root / "src"
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from promptic import load_prompt
+from promptic import load_prompt, render
 
 
 def main():
-    """Load and display different versions of the prompt."""
+    """Load and render different versions of the prompt."""
     script_dir = Path(__file__).parent.resolve()
     prompts_dir = script_dir / "prompts"
 
@@ -32,7 +35,12 @@ def main():
         sys.exit(1)
 
     print("=" * 60)
-    print("Example 5: Versioned Prompt Loading")
+    print("Example 5: Versioned Prompt Loading and Rendering")
+    print("=" * 60)
+
+    # Method 1: Using load_prompt() for simple loading
+    print("\n" + "=" * 60)
+    print("Method 1: Using load_prompt() - Simple Loading")
     print("=" * 60)
 
     # Load latest version (v2.0.0)
@@ -42,28 +50,42 @@ def main():
     print(f"\n[OK] Loaded latest version ({len(latest_content)} chars)")
 
     # Load specific version v1.0.0
-    print("\n" + "=" * 60)
     print("\n--- Loading version v1.0.0 ---\n")
     v1_content = load_prompt(prompts_dir, version="v1.0.0")
     print(v1_content)
     print(f"\n[OK] Loaded v1.0.0 ({len(v1_content)} chars)")
 
-    # Load specific version v2.0.0
+    # Method 2: Using render() for full rendering with version support
     print("\n" + "=" * 60)
-    print("\n--- Loading version v2.0.0 ---\n")
-    v2_content = load_prompt(prompts_dir, version="v2.0.0")
-    print(v2_content)
-    print(f"\n[OK] Loaded v2.0.0 ({len(v2_content)} chars)")
+    print("Method 2: Using render() - Full Rendering")
+    print("=" * 60)
 
-    # Load with partial version (v2 resolves to v2.0.0)
-    print("\n" + "=" * 60)
-    print("\n--- Loading version v2 (resolves to v2.0.0) ---\n")
-    v2_short_content = load_prompt(prompts_dir, version="v2")
-    print(v2_short_content)
-    print(f"\n[OK] Loaded v2 ({len(v2_short_content)} chars)")
+    # Render latest version
+    print("\n--- Rendering LATEST version ---\n")
+    latest_rendered = render(prompts_dir, version="latest")
+    print(latest_rendered)
+    print(f"\n[OK] Rendered latest version ({len(latest_rendered)} chars)")
+
+    # Render specific version v1.0.0
+    print("\n--- Rendering version v1.0.0 ---\n")
+    v1_rendered = render(prompts_dir, version="v1.0.0")
+    print(v1_rendered)
+    print(f"\n[OK] Rendered v1.0.0 ({len(v1_rendered)} chars)")
+
+    # Render with partial version (v2 resolves to v2.0.0)
+    print("\n--- Rendering version v2 (resolves to v2.0.0) ---\n")
+    v2_rendered = render(prompts_dir, version="v2")
+    print(v2_rendered)
+    print(f"\n[OK] Rendered v2 ({len(v2_rendered)} chars)")
+
+    # Render with version and format conversion
+    print("\n--- Rendering v1.0.0 as YAML ---\n")
+    v1_yaml = render(prompts_dir, version="v1.0.0", target_format="yaml")
+    print(v1_yaml[:300] + "..." if len(v1_yaml) > 300 else v1_yaml)
+    print(f"\n[OK] Rendered v1.0.0 as YAML ({len(v1_yaml)} chars)")
 
     print("\n" + "=" * 60)
-    print("✓ All versions loaded successfully!")
+    print("✓ All versions loaded and rendered successfully!")
     print("=" * 60)
 
 

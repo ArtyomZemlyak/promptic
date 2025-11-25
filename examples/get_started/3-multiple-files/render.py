@@ -21,7 +21,7 @@ src_path = project_root / "src"
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from promptic.sdk.nodes import load_node_network, render_node_network
+from promptic import render
 
 
 def main():
@@ -44,12 +44,7 @@ def main():
     print("=" * 60)
     print("Rendering root-1.md (with common.md)")
     print("=" * 60)
-    network1 = load_node_network(root1_path)
-    output1 = render_node_network(
-        network1,
-        target_format="markdown",
-        render_mode="full",
-    )
+    output1 = render(root1_path)
     print(output1)
     print(f"\n[OK] Rendered root-1.md successfully ({len(output1)} chars)\n")
 
@@ -57,12 +52,7 @@ def main():
     print("=" * 60)
     print("Rendering root-2.md (with common.md and specific-2.md)")
     print("=" * 60)
-    network2 = load_node_network(root2_path)
-    output2 = render_node_network(
-        network2,
-        target_format="markdown",
-        render_mode="full",
-    )
+    output2 = render(root2_path)
     print(output2)
     print(f"\n[OK] Rendered root-2.md successfully ({len(output2)} chars)\n")
 

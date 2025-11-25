@@ -21,7 +21,7 @@ src_path = project_root / "src"
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from promptic.sdk.nodes import load_node_network, render_node_network
+from promptic import render
 
 
 def main():
@@ -34,11 +34,6 @@ def main():
         print(f"Error: root.yaml not found: {root_path}")
         sys.exit(1)
 
-    # Load network
-    print("Loading node network from root.yaml...")
-    network = load_node_network(root_path)
-    print(f"[OK] Network loaded: {len(network.nodes)} nodes\n")
-
     # Define all supported target formats
     target_formats = ["yaml", "markdown", "json"]
 
@@ -47,11 +42,7 @@ def main():
         print("=" * 60)
         print(f"Rendering to {target_format.upper()} format (full mode)")
         print("=" * 60)
-        output = render_node_network(
-            network,
-            target_format=target_format,
-            render_mode="full",
-        )
+        output = render(root_path, target_format=target_format)
         print(output)
         print(f"\n[OK] Rendered to {target_format} successfully ({len(output)} chars)\n")
 

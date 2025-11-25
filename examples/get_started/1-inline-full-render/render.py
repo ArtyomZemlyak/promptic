@@ -21,7 +21,7 @@ src_path = project_root / "src"
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from promptic.sdk.nodes import load_node_network, render_node_network
+from promptic import render
 
 
 def main():
@@ -33,15 +33,9 @@ def main():
         print(f"Error: main.md not found: {main_path}")
         sys.exit(1)
 
-    # Load network from markdown file
-    network = load_node_network(main_path)
-
     # Render with full mode (inlines all referenced content)
-    output = render_node_network(
-        network,
-        target_format="markdown",
-        render_mode="full",
-    )
+    # By default, render() uses target_format="markdown" and render_mode="full"
+    output = render(main_path)
 
     print("=== Rendered Output (full render mode) ===\n")
     print(output)
