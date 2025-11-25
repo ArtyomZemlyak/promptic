@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from promptic.versioning.domain.errors import (
     ExportDirectoryConflictError,
@@ -67,6 +67,7 @@ class FileSystemExporter:
         target_dir: str,
         preserve_structure: bool = True,
         file_mapping: Optional[dict[str, str]] = None,
+        content_processor: Optional[Callable[[Path, str], str]] = None,
     ) -> list[str]:
         """
         Copy files from source to target, preserving hierarchical directory structure.
@@ -75,12 +76,14 @@ class FileSystemExporter:
         # - Maintains nested subdirectories (not flattened)
         # - Preserves relative path relationships
         # - Uses file_mapping if provided, otherwise derives from source paths
+        # - Applies content_processor if provided (e.g. for variable substitution)
 
         Args:
             source_files: List of source file paths
             target_dir: Target export directory
             preserve_structure: Whether to preserve directory structure (default: True)
             file_mapping: Optional mapping of source paths to target paths
+            content_processor: Optional function to process content before writing
 
         Returns:
             List of exported file paths
@@ -88,6 +91,8 @@ class FileSystemExporter:
         Raises:
             ExportError: If any file cannot be copied
         """
+        from typing import Callable  # Ensure Callable is available locally if needed
+
         target = Path(target_dir)
         target.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +118,15 @@ class FileSystemExporter:
 
             # Copy file
             try:
-                shutil.copy2(source_path, target_path)
+                if content_processor:
+                    # Read, process, and write
+                    content = source_path.read_text(encoding="utf-8")
+                    processed_content = content_processor(source_path, content)
+                    target_path.write_text(processed_content, encoding="utf-8")
+                else:
+                    # Direct copy
+                    shutil.copy2(source_path, target_path)
+
                 exported_files.append(str(target_path))
 
                 log_version_operation(

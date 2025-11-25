@@ -48,7 +48,7 @@ class SubstitutionContext:
     format: str
     variables: dict[str, Any]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate context fields."""
         if not self.node_id:
             raise ValueError("node_id cannot be empty")

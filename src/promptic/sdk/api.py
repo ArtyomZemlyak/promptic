@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from promptic.versioning import (
     ExportResult,
@@ -75,6 +76,7 @@ def export_version(
     target_dir: str | Path,
     *,
     overwrite: bool = False,
+    vars: dict[str, Any] | None = None,
 ) -> ExportResult:
     """
     Export a complete version snapshot of a prompt hierarchy.
@@ -82,12 +84,14 @@ def export_version(
     # AICODE-NOTE: This function exports a complete version snapshot preserving
     the hierarchical directory structure. Path references in files are resolved
     to work correctly in the exported structure. Export is atomic (all or nothing).
+    Supports variable substitution using the vars parameter.
 
     Args:
         source_path: Source prompt hierarchy path (directory or file)
         version_spec: Version specification ("latest", "v1", "v1.1", or hierarchical dict)
         target_dir: Target export directory
         overwrite: Whether to overwrite existing target directory
+        vars: Optional dictionary of variables for substitution
 
     Returns:
         ExportResult with root prompt content and exported files
@@ -100,7 +104,8 @@ def export_version(
         >>> result = export_version(
         ...     source_path="prompts/task1/",
         ...     version_spec="v2.0.0",
-        ...     target_dir="export/task1_v2/"
+        ...     target_dir="export/task1_v2/",
+        ...     vars={"user": "Alice"}
         ... )
         >>> print(result.root_prompt_content)
         >>> print(f"Exported {len(result.exported_files)} files")
@@ -111,6 +116,7 @@ def export_version(
         version_spec=version_spec,
         target_dir=str(target_dir),
         overwrite=overwrite,
+        vars=vars,
     )
 
 

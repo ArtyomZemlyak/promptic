@@ -1010,7 +1010,7 @@ def render_node_network(
         from promptic.context.variables import SubstitutionContext, VariableSubstitutor
 
         # Extract node name from node ID (filename without path and extension)
-        node_name = _extract_node_name(network.root.id)
+        node_name = _extract_node_name(str(network.root.id))
 
         # For root node, hierarchical path is just the node name
         # (This will be extended when processing child nodes in the future)
@@ -1018,7 +1018,7 @@ def render_node_network(
 
         # Create substitution context
         context = SubstitutionContext(
-            node_id=network.root.id,
+            node_id=str(network.root.id),
             node_name=node_name,
             hierarchical_path=hierarchical_path,
             content=output,
