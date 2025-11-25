@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Example 6: Export specific versions of prompts.
+"""Example 6: Export specific versions of prompts using render().
 
 This script demonstrates how to export specific versions of prompts from a
-hierarchical directory structure, preserving the directory structure and
-removing version suffixes from filenames.
+hierarchical directory structure using the render() function with export_to parameter.
+
+The render() function with export_to parameter:
+- Preserves the directory structure
+- Removes version suffixes from filenames
+- Supports variable substitution during export
 
 Usage:
     python export_demo.py
@@ -22,7 +26,7 @@ src_path = project_root / "src"
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from promptic import cleanup_exported_version, export_version
+from promptic import cleanup_exported_version, render
 
 
 def print_directory_tree(
@@ -68,13 +72,11 @@ def main():
     print("Example 6: Version Export")
     print("=" * 70)
 
-    # Export version 1.0.0
+    # Export version 1.0.0 using render() with export_to
     print("\n--- Exporting version v1.0.0 ---\n")
     export_v1_dir = export_base / "workflow_v1"
 
-    result_v1 = export_version(
-        source_path=prompts_dir, version_spec="v1.0.0", target_dir=export_v1_dir, overwrite=True
-    )
+    result_v1 = render(prompts_dir, version="v1.0.0", export_to=export_v1_dir, overwrite=True)
 
     print(f"✓ Exported {len(result_v1.exported_files)} files to: {export_v1_dir}")
     print(f"  Structure preserved: {result_v1.structure_preserved}")
@@ -92,14 +94,12 @@ def main():
     if len(result_v1.root_prompt_content) > 300:
         print("    ...")
 
-    # Export version 2.0.0
+    # Export version 2.0.0 using render() with export_to
     print("\n" + "=" * 70)
     print("\n--- Exporting version v2.0.0 ---\n")
     export_v2_dir = export_base / "workflow_v2"
 
-    result_v2 = export_version(
-        source_path=prompts_dir, version_spec="v2.0.0", target_dir=export_v2_dir, overwrite=True
-    )
+    result_v2 = render(prompts_dir, version="v2.0.0", export_to=export_v2_dir, overwrite=True)
 
     print(f"✓ Exported {len(result_v2.exported_files)} files to: {export_v2_dir}")
     print(f"  Structure preserved: {result_v2.structure_preserved}")

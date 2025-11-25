@@ -55,34 +55,37 @@ def main():
     print(v1_content)
     print(f"\n[OK] Loaded v1.0.0 ({len(v1_content)} chars)")
 
-    # Method 2: Using render() for full rendering with version support
+    # Method 2: Using render() with export_to for version export
     print("\n" + "=" * 60)
-    print("Method 2: Using render() - Full Rendering")
+    print("Method 2: Using render() with export_to - Version Export")
     print("=" * 60)
 
-    # Render latest version
-    print("\n--- Rendering LATEST version ---\n")
-    latest_rendered = render(prompts_dir, version="latest")
-    print(latest_rendered)
-    print(f"\n[OK] Rendered latest version ({len(latest_rendered)} chars)")
+    # AICODE-NOTE: For versioned prompt hierarchies with references, use render()
+    # with export_to parameter. This exports the entire hierarchy with resolved
+    # references and variable substitution.
 
-    # Render specific version v1.0.0
-    print("\n--- Rendering version v1.0.0 ---\n")
-    v1_rendered = render(prompts_dir, version="v1.0.0")
-    print(v1_rendered)
-    print(f"\n[OK] Rendered v1.0.0 ({len(v1_rendered)} chars)")
+    # Export latest version
+    print("\n--- Exporting LATEST version ---\n")
+    export_dir = script_dir / "temp_export"
+    if export_dir.exists():
+        import shutil
 
-    # Render with partial version (v2 resolves to v2.0.0)
-    print("\n--- Rendering version v2 (resolves to v2.0.0) ---\n")
-    v2_rendered = render(prompts_dir, version="v2")
-    print(v2_rendered)
-    print(f"\n[OK] Rendered v2 ({len(v2_rendered)} chars)")
+        shutil.rmtree(export_dir)
 
-    # Render with version and format conversion
-    print("\n--- Rendering v1.0.0 as YAML ---\n")
-    v1_yaml = render(prompts_dir, version="v1.0.0", target_format="yaml")
-    print(v1_yaml[:300] + "..." if len(v1_yaml) > 300 else v1_yaml)
-    print(f"\n[OK] Rendered v1.0.0 as YAML ({len(v1_yaml)} chars)")
+    latest_exported = render(prompts_dir, version="latest", export_to=export_dir, overwrite=True)
+    print(f"✓ Exported {len(latest_exported.exported_files)} files")
+    print(f"Root content preview:\n{latest_exported.root_prompt_content[:200]}...")
+    print(f"\n[OK] Exported latest version")
+
+    # Clean up export directory
+    import shutil
+
+    shutil.rmtree(export_dir)
+
+    # Show that load_prompt() is still useful for simple loading
+    print("\n" + "=" * 60)
+    print("Note: For simple loading without references, use load_prompt()")
+    print("=" * 60)
 
     print("\n" + "=" * 60)
     print("✓ All versions loaded and rendered successfully!")
