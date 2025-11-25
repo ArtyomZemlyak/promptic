@@ -234,18 +234,26 @@ def render_node_network(
     network: NodeNetwork,
     target_format: Literal["yaml", "markdown", "json", "jinja2"],
     render_mode: Literal["full", "file_first"] = "file_first",
+    vars: dict[str, Any] | None = None,
 ) -> str:
-    """Render a NodeNetwork to target format with specified render mode.
+    """Render a NodeNetwork to target format with specified render mode and optional variables.
 
     Renders the network's root node and processes referenced child nodes
     based on the render mode:
     - "file_first": Returns content with file references (links) preserved
     - "full": Inlines all referenced content at the location of references (replaces links)
 
+    Variable substitution is performed after rendering if vars parameter is provided.
+    Variables can be scoped to specific nodes or paths:
+    - Simple: {"var": "value"} - applies to all nodes
+    - Node-scoped: {"node_name.var": "value"} - applies only to nodes with that name
+    - Path-scoped: {"root.group.node.var": "value"} - applies only at specific path
+
     Side Effects:
         - No state mutation (pure function)
         - May import format-specific libraries (yaml, json) on first use
         - Processes child nodes if render_mode="full"
+        - Performs variable substitution if vars provided
 
     Args:
         network: NodeNetwork to render (must have valid root node)
@@ -255,9 +263,13 @@ def render_node_network(
         render_mode: Rendering mode:
             - "file_first": Preserves file references as links (compact output)
             - "full": Replaces references with inline content at their location
+        vars: Optional dictionary of variables for substitution. Supports scoped variables:
+            - "var" - applies to all nodes
+            - "node.var" - applies only to nodes named "node"
+            - "root.group.node.var" - applies only at hierarchical path
 
     Returns:
-        Rendered content as string in the specified format.
+        Rendered content as string in the specified format with variables substituted.
         For full mode, references are replaced in-place (e.g., [label](file.md) becomes
         the content of file.md at that location).
 
@@ -271,8 +283,10 @@ def render_node_network(
         >>> output = render_node_network(network, "markdown", render_mode="file_first")
         >>> # Full mode: replaces [label](file.md) with file content at that location
         >>> full_output = render_node_network(network, "markdown", render_mode="full")
-        >>> # Convert to YAML
-        >>> yaml_output = render_node_network(network, "yaml", render_mode="file_first")
+        >>> # With variables
+        >>> output_with_vars = render_node_network(
+        ...     network, "markdown", vars={"user_name": "Alice", "node.format": "detailed"}
+        ... )
     """
     # AICODE-NOTE: Format conversion logic:
     #              - If source format == target format and file_first mode:
@@ -989,4 +1003,60 @@ def render_node_network(
         output = render_node(network.root, target_format)
         # References are already in the content (as links), so we don't need to add anything
 
+    # AICODE-NOTE: Variable substitution happens after rendering is complete
+    # This ensures variables are substituted in the final rendered content,
+    # after all references have been resolved (in full mode) or preserved (in file_first mode)
+    if vars:
+        from promptic.context.variables import SubstitutionContext, VariableSubstitutor
+
+        # Extract node name from node ID (filename without path and extension)
+        node_name = _extract_node_name(network.root.id)
+
+        # For root node, hierarchical path is just the node name
+        # (This will be extended when processing child nodes in the future)
+        hierarchical_path = node_name
+
+        # Create substitution context
+        context = SubstitutionContext(
+            node_id=network.root.id,
+            node_name=node_name,
+            hierarchical_path=hierarchical_path,
+            content=output,
+            format=target_format,
+            variables=vars,
+        )
+
+        # Perform substitution
+        substitutor = VariableSubstitutor()
+        output = substitutor.substitute(context)
+
     return output
+
+
+def _extract_node_name(node_id: str) -> str:
+    """Extract node name from node ID (typically file path).
+
+    # AICODE-NOTE: Node name extraction strategy:
+    # - Take the filename from the full path
+    # - Remove file extension
+    # - Remove version suffix (_v1, _v2, etc.) if present
+    # - Result is the base name used for node-scoped variable matching
+    #
+    # Examples:
+    #   "/path/to/instructions_v1.md" -> "instructions"
+    #   "templates/data.yaml" -> "data"
+    #   "root.md" -> "root"
+    """
+    from pathlib import Path
+
+    # Get filename without path
+    filename = Path(node_id).stem  # stem removes extension
+
+    # Remove version suffix if present (e.g., "_v1", "_v2.0", "_v1.0.0")
+    # Pattern: _v{digits} optionally followed by .{digits} and .{digits}
+    import re
+
+    version_pattern = re.compile(r"_v\d+(\.\d+)?(\.\d+)?$")
+    base_name = version_pattern.sub("", filename)
+
+    return base_name
