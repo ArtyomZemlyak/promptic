@@ -17,9 +17,36 @@ pip install -e .
 
 ## Quick Start
 
-### Node Networks
+### Simple Rendering (Recommended)
 
-Load interconnected files and render them in various formats:
+The simplest way to use promptic - load and render a file in one call:
+
+```python
+from promptic import render
+
+# Simple: render markdown file with all references inlined
+output = render("prompts/task.md")
+print(output)
+
+# With variables
+output = render(
+    "prompts/task.md",
+    vars={"user_name": "Alice", "task_type": "analysis"}
+)
+print(output)
+
+# Convert to different format
+yaml_output = render(
+    "prompts/task.md",
+    target_format="yaml",
+    render_mode="file_first"
+)
+print(yaml_output)
+```
+
+### Advanced: Node Networks
+
+For more control, load and render separately:
 
 ```python
 from promptic.sdk.nodes import load_node_network, render_node_network
@@ -113,6 +140,7 @@ Version your prompts using semantic versioning conventions:
 ### Simple API
 
 The library exports just what you need:
+- `render()` - **Main function**: Load and render a file in one call (recommended)
 - `load_prompt()` - Load versioned prompts
 - `export_version()` - Export a version to a directory
 - `cleanup_exported_version()` - Clean up exported files

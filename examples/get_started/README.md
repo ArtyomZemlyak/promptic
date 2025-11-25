@@ -4,6 +4,32 @@ These examples are designed for beginners who want to quickly understand how to 
 
 ## Examples
 
+### 0. Simple Render (`0-simple-render/`) ⭐ **Start Here!**
+
+The simplest and recommended way to use promptic - the `render()` function.
+
+**What you'll learn:**
+- How to use the `render()` function for one-step rendering
+- How to pass variables for dynamic content
+- How to convert between different formats
+- The recommended approach for using promptic
+
+**Files:**
+- `task.md` - Main task file with references
+- `context.md` - Context information
+- `instructions.md` - Instructions
+- `simple_render.py` - Basic usage of render()
+- `with_variables.py` - Using render() with variables
+
+**Run it:**
+```bash
+cd examples/get_started/0-simple-render
+python simple_render.py
+python with_variables.py
+```
+
+---
+
 ### 1. Inline Full Render (`1-inline-full-render/`)
 
 The simplest example demonstrating full render mode where all references are inlined into a single output.
