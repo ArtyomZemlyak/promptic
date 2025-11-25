@@ -237,6 +237,12 @@ See `AGENTS.md` for detailed contribution guidelines and development workflow.
 
 ## Changelog
 
+### v0.1.2 (2025-01-28)
+
+- ✅ Added `render()` function for simplified prompt rendering - load and render files in one call
+- ✅ Refactored examples to use new `render()` function with pydantic-based rendering
+- ✅ Improved API simplicity with recommended `render()` function as main entry point
+
 ### v0.1.1 (2025-11-25)
 
 - ✅ `render_node_network()` now substitutes variables across the entire hierarchy with correct node and path scoping

@@ -178,7 +178,7 @@ def test_missing_reference_returns_original(strategy, content, format):
     # Lookup always returns None
     def null_lookup(path): return None
     def null_renderer(node, fmt): return ""
-    
+
     result = strategy.process_string(content, null_lookup, null_renderer, format)
     # Original reference markers should be preserved
     assert len(result) >= len(content) - 10  # Allow for minor changes

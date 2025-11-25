@@ -20,12 +20,12 @@ As a library maintainer, I want to eliminate the duplicate reference processing 
 - **Entities**: `ContextNode`, `NodeNetwork`, `NodeReference`
 - **Use Cases**: Reference resolution, content rendering
 - **Interface Adapters**: Format parsers
-- **SOLID Considerations**: 
+- **SOLID Considerations**:
   - SRP violation: single function handles all reference types and all formats
   - DRY violation: identical code blocks repeated 4+ times
   - Mitigation: Extract dedicated `ReferenceInliner` class with single responsibility
 
-**Quality Signals**: 
+**Quality Signals**:
 - Unit tests for each extracted helper class
 - Integration tests covering all render modes and formats
 - No change in test output (regression prevention)

@@ -242,12 +242,12 @@ from typing import Any, Callable
 
 class ReferenceStrategy(ABC):
     """Strategy interface for reference resolution."""
-    
+
     @abstractmethod
     def can_process(self, content: Any) -> bool:
         """Check if this strategy can process the content type."""
         pass
-    
+
     @abstractmethod
     def process(
         self,
@@ -256,12 +256,12 @@ class ReferenceStrategy(ABC):
         format_renderer: Callable[[Any], str],
     ) -> str:
         """Process content and resolve references.
-        
+
         Args:
             content: Content string to process
             node_lookup: Function to lookup nodes by path
             format_renderer: Function to render node content to string
-            
+
         Returns:
             Processed content with references resolved
         """
@@ -273,15 +273,15 @@ from promptic.context.nodes.models import ContextNode, NodeNetwork
 
 class ReferenceInliner:
     """Service for inlining referenced content into nodes.
-    
+
     # AICODE-NOTE: This class consolidates all duplicate process_node_content
     # implementations from render_node_network. It uses strategy pattern to
     # handle different reference types (markdown links, jinja2 refs, $ref).
     """
-    
+
     def __init__(self, strategies: list[ReferenceStrategy] | None = None):
         self.strategies = strategies or self._default_strategies()
-    
+
     def inline_references(
         self,
         node: ContextNode,
@@ -289,12 +289,12 @@ class ReferenceInliner:
         target_format: str,
     ) -> str:
         """Inline all references in node content.
-        
+
         Args:
             node: Node to process
             network: Network containing all nodes for lookup
             target_format: Target output format
-            
+
         Returns:
             Content string with all references inlined
         """
@@ -420,4 +420,3 @@ See [contracts/](./contracts/) for interface definitions.
 | `sdk/nodes.py` (markdown pattern) | Extract | `rendering/strategies/markdown_link.py` |
 | `sdk/nodes.py` ($ref pattern) | Extract | `rendering/strategies/structured_ref.py` |
 | `versioning/domain/exporter.py:68-327` | Refactor in place | Same file, new methods |
-
