@@ -1,7 +1,26 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Example 8: Export with variable substitution using render().
+
+This script demonstrates how to use render() with export_to and variables
+for exporting prompts with variable substitution at different scopes.
+
+Usage:
+    python export_demo.py
+"""
+
 import shutil
+import sys
 from pathlib import Path
 
-from promptic.sdk.api import export_version
+# Add project root to path to import promptic
+script_dir = Path(__file__).resolve().parent
+project_root = script_dir.parent.parent.parent
+src_path = project_root / "src"
+if src_path.exists():
+    sys.path.insert(0, str(src_path))
+
+from promptic import render
 
 # Setup paths
 base_dir = Path(__file__).parent
@@ -26,9 +45,9 @@ variables = {
     "root.child.path_only": "I am path only",
 }
 
-print("Exporting with variables...")
-result = export_version(
-    source_path=base_dir / "root.md", version_spec="latest", target_dir=export_dir, vars=variables
+print("Exporting with variables using render()...")
+result = render(
+    base_dir / "root.md", version="latest", export_to=export_dir, vars=variables, overwrite=True
 )
 
 print("\nExport successful!")

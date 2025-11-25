@@ -36,7 +36,9 @@ def render(
     vars: dict[str, Any] | None = None,
     config: NetworkConfig | None = None,
     version: Optional[VersionSpec] = None,
-) -> str:
+    export_to: str | Path | None = None,
+    overwrite: bool = False,
+) -> str | ExportResult:
     """
     Load and render a prompt file in one convenient function call.
 
@@ -44,10 +46,14 @@ def render(
     # load_node_network() and render_node_network() into a single convenient
     # function that handles the most common use case: loading a file and
     # rendering it to a target format with optional variable substitution.
+    #
+    # When export_to is provided, it also handles version export functionality,
+    # eliminating the need to call export_version() separately.
 
     This function provides the complete promptic workflow:
     1. Load the file and build a node network (with reference resolution)
     2. Render the network to the target format with variable substitution
+    3. Optionally export to directory (when export_to is provided)
 
     Args:
         path: Path to the prompt file to render (markdown, yaml, json, jinja2)
@@ -65,15 +71,21 @@ def render(
             - Path-scoped: {"root.group.node.var": "value"} - applies at specific path
         config: Optional network configuration (max_depth, size limits)
         version: Optional version specification for version-aware loading
+        export_to: Optional directory path to export files (instead of returning string)
+            When provided, files are exported with version suffixes removed
+        overwrite: Whether to overwrite existing export directory (default: False)
 
     Returns:
-        Rendered content as string in the target format
+        - str: Rendered content as string (when export_to is None)
+        - ExportResult: Export result with files and content (when export_to is provided)
 
     Raises:
         FileNotFoundError: If file doesn't exist
         FormatDetectionError: If format cannot be detected
         FormatParseError: If parsing fails
         NodeNetworkValidationError: If network validation fails (cycles, depth)
+        ExportError: If export fails (when export_to is provided)
+        ExportDirectoryExistsError: If target exists without overwrite (when export_to is provided)
 
     Example:
         >>> # Simple: render markdown file with all references inlined
@@ -95,9 +107,71 @@ def render(
 
         >>> # With version specification
         >>> output = render("prompts/task.md", version="v1.0.0")
+
+        >>> # Export to directory instead of returning string
+        >>> result = render(
+        ...     "prompts/task.md",
+        ...     version="v2.0.0",
+        ...     export_to="output/task_v2",
+        ...     vars={"user": "Alice"}
+        ... )
+        >>> print(f"Exported {len(result.exported_files)} files")
+        >>> print(result.root_prompt_content)
     """
+    # AICODE-NOTE: Version handling strategy:
+    # - If version is specified, always use export workflow (even without export_to)
+    # - Export to temporary directory, render, then clean up (or export to real dir)
+    # - This ensures proper version resolution for hierarchical references
+    # - Return string if export_to is None, otherwise return ExportResult
+
+    if version is not None:
+        # Use version export workflow for proper version resolution
+        import shutil
+        import tempfile
+
+        exporter = VersionExporter()
+        version_spec = version
+
+        # Determine export directory
+        if export_to is not None:
+            # Export to user-specified directory
+            export_result = exporter.export_version(
+                source_path=str(path),
+                version_spec=version_spec,
+                target_dir=str(export_to),
+                overwrite=overwrite,
+                vars=vars,
+            )
+            # Return ExportResult as before
+            return export_result
+        else:
+            # Export to temporary directory, render, and clean up
+            with tempfile.TemporaryDirectory() as temp_dir:
+                export_result = exporter.export_version(
+                    source_path=str(path),
+                    version_spec=version_spec,
+                    target_dir=temp_dir,
+                    overwrite=True,
+                    vars=vars,
+                )
+                # Return only the rendered content string
+                return export_result.root_prompt_content
+
+    # Export without version (just export_to)
+    if export_to is not None:
+        # Use version export workflow with "latest" version
+        exporter = VersionExporter()
+        return exporter.export_version(
+            source_path=str(path),
+            version_spec="latest",
+            target_dir=str(export_to),
+            overwrite=overwrite,
+            vars=vars,
+        )
+
+    # Standard rendering workflow (no version, no export)
     # Load the node network from file
-    network = load_node_network(root_path=path, config=config, version=version)
+    network = load_node_network(root_path=path, config=config, version=None)
 
     # Render the network to target format
     return render_node_network(

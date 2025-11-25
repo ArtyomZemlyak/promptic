@@ -97,11 +97,11 @@ class TestExample005Versioning:
             f"stderr: {stderr}"
         )
 
-        # Verify output contains version loading
-        assert "Loading LATEST version" in stdout
-        assert "Loading version v1.0.0" in stdout
-        assert "Loading version v2.0.0" in stdout
-        assert "[OK] Loaded" in stdout
+        # Verify output contains version rendering
+        assert "Rendering LATEST version" in stdout
+        assert "Rendering version v1.0.0" in stdout
+        assert "Rendering version v2" in stdout
+        assert "[OK] Rendered" in stdout
 
 
 class TestExample006VersionExport:
