@@ -35,6 +35,15 @@ output = render_node_network(
     render_mode="full",
 )
 print(output)
+
+# Render with variables
+output_with_vars = render_node_network(
+    network,
+    target_format="markdown",
+    render_mode="full",
+    vars={"user_name": "Alice", "task_type": "analysis"}
+)
+print(output_with_vars)
 ```
 
 ### Versioning
@@ -71,6 +80,27 @@ Organize your prompts as interconnected files in any supported format:
 - **Jinja2**: Dynamic templating
 
 Files can reference each other, creating hierarchical structures that are easy to navigate and maintain.
+
+### Variable Insertion
+
+Insert runtime values into prompts with hierarchical scope control:
+- **Simple scope**: `{"var": "value"}` - applies globally
+- **Node scope**: `{"node.var": "value"}` - targets specific nodes
+- **Path scope**: `{"root.group.node.var": "value"}` - maximum precision
+
+```python
+output = render_node_network(
+    network,
+    target_format="markdown",
+    vars={
+        "user_name": "Alice",              # Simple: applies everywhere
+        "instructions.format": "detailed",  # Node: only in "instructions" nodes
+        "root.group.node.style": "technical"  # Path: only at specific path
+    }
+)
+```
+
+See `docs_site/variables/insertion-guide.md` for complete guide.
 
 ### Semantic Versioning
 
