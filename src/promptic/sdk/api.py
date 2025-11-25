@@ -118,22 +118,60 @@ def render(
         >>> print(f"Exported {len(result.exported_files)} files")
         >>> print(result.root_prompt_content)
     """
-    # AICODE-NOTE: If export_to is provided, use export_version() workflow instead of render_node_network()
-    if export_to is not None:
-        # Use version export workflow
+    # AICODE-NOTE: Version handling strategy:
+    # - If version is specified, always use export workflow (even without export_to)
+    # - Export to temporary directory, render, then clean up (or export to real dir)
+    # - This ensures proper version resolution for hierarchical references
+    # - Return string if export_to is None, otherwise return ExportResult
+
+    if version is not None:
+        # Use version export workflow for proper version resolution
+        import shutil
+        import tempfile
+
         exporter = VersionExporter()
-        version_spec = version if version is not None else "latest"
+        version_spec = version
+
+        # Determine export directory
+        if export_to is not None:
+            # Export to user-specified directory
+            export_result = exporter.export_version(
+                source_path=str(path),
+                version_spec=version_spec,
+                target_dir=str(export_to),
+                overwrite=overwrite,
+                vars=vars,
+            )
+            # Return ExportResult as before
+            return export_result
+        else:
+            # Export to temporary directory, render, and clean up
+            with tempfile.TemporaryDirectory() as temp_dir:
+                export_result = exporter.export_version(
+                    source_path=str(path),
+                    version_spec=version_spec,
+                    target_dir=temp_dir,
+                    overwrite=True,
+                    vars=vars,
+                )
+                # Return only the rendered content string
+                return export_result.root_prompt_content
+
+    # Export without version (just export_to)
+    if export_to is not None:
+        # Use version export workflow with "latest" version
+        exporter = VersionExporter()
         return exporter.export_version(
             source_path=str(path),
-            version_spec=version_spec,
+            version_spec="latest",
             target_dir=str(export_to),
             overwrite=overwrite,
             vars=vars,
         )
 
-    # Standard rendering workflow (return string)
+    # Standard rendering workflow (no version, no export)
     # Load the node network from file
-    network = load_node_network(root_path=path, config=config, version=version)
+    network = load_node_network(root_path=path, config=config, version=None)
 
     # Render the network to target format
     return render_node_network(
