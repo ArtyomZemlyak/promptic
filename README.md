@@ -209,6 +209,14 @@ See `AGENTS.md` for detailed contribution guidelines and development workflow.
 
 ## Changelog
 
+### v0.1.1 (2025-11-25)
+
+- ✅ `render_node_network()` now substitutes variables across the entire hierarchy with correct node and path scoping
+- ✅ Networks remain reusable between renders by performing substitutions on a deep copy
+- ✅ Added `tests/integration/test_variable_insertion.py` to cover simple, node, and path scopes plus reuse safety
+- ✅ Documented scoping behaviour updates in `docs_site/variables/insertion-guide.md`
+- ✅ Published release notes draft at `docs_site/prompt-versioning/releases/v0.1.1.md` for GitHub releases
+
 ### v0.1.0 (2025-11-24)
 
 **Initial Release** 🎉
