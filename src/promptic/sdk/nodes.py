@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 from promptic.context.nodes.errors import FormatDetectionError, FormatParseError
 from promptic.context.nodes.models import ContextNode, NetworkConfig, NodeNetwork
+from promptic.context.variables import SubstitutionContext, VariableSubstitutor
 from promptic.format_parsers.registry import get_default_registry
 from promptic.pipeline.network.builder import NodeNetworkBuilder
 from promptic.versioning import VersionSpec
@@ -288,6 +289,13 @@ def render_node_network(
         ...     network, "markdown", vars={"user_name": "Alice", "node.format": "detailed"}
         ... )
     """
+    # AICODE-NOTE: When variables are provided we operate on a deep copy of the
+    # network so the caller can reuse the original network across multiple renders.
+    # This also allows us to substitute variables per node ahead of rendering.
+    if vars:
+        network = network.model_copy(deep=True)
+        _apply_variables_to_network(network, vars)
+
     # AICODE-NOTE: Format conversion logic:
     #              - If source format == target format and file_first mode:
     #                return raw_content without conversion (no processing needed)
@@ -1003,33 +1011,6 @@ def render_node_network(
         output = render_node(network.root, target_format)
         # References are already in the content (as links), so we don't need to add anything
 
-    # AICODE-NOTE: Variable substitution happens after rendering is complete
-    # This ensures variables are substituted in the final rendered content,
-    # after all references have been resolved (in full mode) or preserved (in file_first mode)
-    if vars:
-        from promptic.context.variables import SubstitutionContext, VariableSubstitutor
-
-        # Extract node name from node ID (filename without path and extension)
-        node_name = _extract_node_name(str(network.root.id))
-
-        # For root node, hierarchical path is just the node name
-        # (This will be extended when processing child nodes in the future)
-        hierarchical_path = node_name
-
-        # Create substitution context
-        context = SubstitutionContext(
-            node_id=str(network.root.id),
-            node_name=node_name,
-            hierarchical_path=hierarchical_path,
-            content=output,
-            format=target_format,
-            variables=vars,
-        )
-
-        # Perform substitution
-        substitutor = VariableSubstitutor()
-        output = substitutor.substitute(context)
-
     return output
 
 
@@ -1060,3 +1041,140 @@ def _extract_node_name(node_id: str) -> str:
     base_name = version_pattern.sub("", filename)
 
     return base_name
+
+
+def _apply_variables_to_network(network: NodeNetwork, variables: dict[str, Any]) -> None:
+    """Apply variable substitution to every node in the network copy."""
+    if not variables:
+        return
+
+    substitutor = VariableSubstitutor()
+    visited: set[str] = set()
+
+    root_path = Path(str(network.root.id)).resolve()
+    root_dir = root_path.parent
+    root_name = _sanitize_path_segment(_extract_node_name(root_path.name))
+
+    def dfs(node: ContextNode) -> None:
+        node_id = str(node.id)
+        if node_id in visited:
+            return
+        visited.add(node_id)
+
+        node_path = Path(node_id)
+        hierarchical_path = _build_hierarchical_path(
+            node_path=node_path, root_dir=root_dir, root_path=root_path, root_name=root_name
+        )
+
+        _apply_variables_to_node(
+            node=node,
+            hierarchical_path=hierarchical_path,
+            variables=variables,
+            substitutor=substitutor,
+        )
+
+        for child in node.children:
+            dfs(child)
+
+    dfs(network.root)
+
+    # Ensure disconnected nodes (if any) also receive substitutions
+    for node_id, node in network.nodes.items():
+        if node_id not in visited:
+            dfs(node)
+
+
+def _apply_variables_to_node(
+    node: ContextNode,
+    hierarchical_path: str,
+    variables: dict[str, Any],
+    substitutor: VariableSubstitutor,
+) -> None:
+    """Apply variables to a single node's content in-place."""
+    if not variables:
+        return
+
+    node_id = str(node.id)
+    node_name = _sanitize_path_segment(_extract_node_name(node_id))
+
+    def build_context(content: str) -> SubstitutionContext:
+        return SubstitutionContext(
+            node_id=node_id,
+            node_name=node_name,
+            hierarchical_path=hierarchical_path,
+            content=content,
+            format=node.format,
+            variables=variables,
+        )
+
+    if "raw_content" in node.content and isinstance(node.content["raw_content"], str):
+        node.content["raw_content"] = substitutor.substitute(
+            build_context(node.content["raw_content"])
+        )
+    else:
+        node.content = _apply_variables_to_structure(node.content, build_context, substitutor)
+
+
+def _apply_variables_to_structure(
+    value: Any,
+    context_factory: Callable[[str], SubstitutionContext],
+    substitutor: VariableSubstitutor,
+) -> Any:
+    """Recursively apply substitution to string values inside structured content."""
+    if isinstance(value, str):
+        return substitutor.substitute(context_factory(value))
+    if isinstance(value, dict):
+        return {
+            key: _apply_variables_to_structure(sub_value, context_factory, substitutor)
+            for key, sub_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_apply_variables_to_structure(item, context_factory, substitutor) for item in value]
+    return value
+
+
+def _build_hierarchical_path(
+    node_path: Path, root_dir: Path, root_path: Path, root_name: str
+) -> str:
+    """Construct hierarchical dot path for a node relative to the root."""
+    resolved_node = node_path.resolve()
+    if resolved_node == root_path:
+        return root_name
+
+    try:
+        relative_parts = resolved_node.relative_to(root_dir).parts
+    except ValueError:
+        # Node outside of root directory; fall back to sanitized node name with root prefix
+        fallback = _sanitize_path_segment(_extract_node_name(node_path.name))
+        return f"{root_name}.{fallback}" if fallback and fallback != root_name else root_name
+
+    segments: list[str] = [root_name]
+    if relative_parts:
+        *dirs, filename = relative_parts
+    else:
+        dirs = []
+        filename = resolved_node.name
+
+    for directory in dirs:
+        sanitized = _sanitize_path_segment(directory)
+        if sanitized:
+            segments.append(sanitized)
+
+    filename_segment = _sanitize_path_segment(_extract_node_name(filename))
+    if filename_segment and filename_segment != root_name:
+        segments.append(filename_segment)
+
+    return ".".join(segments)
+
+
+def _sanitize_path_segment(segment: str) -> str:
+    """Sanitize filesystem segment names for variable scoping paths."""
+    import re
+
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", segment)
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+    if not sanitized:
+        sanitized = "node"
+    if sanitized[0].isdigit():
+        sanitized = f"_{sanitized}"
+    return sanitized

@@ -86,6 +86,10 @@ vars = {
 - `root/group/instructions.md` at path `root.group.instructions` gets all three variables
 - `root/other/instructions.md` gets only `user_name` and `format` (not `style`)
 
+> Path segments are derived from the root filename plus each directory and the final file stem.
+> Non-alphanumeric characters are normalized to underscores (e.g., `group-one/details.md`
+> becomes `root.group_one.details`). Use the sanitized segments in your `vars` keys.
+
 ## Precedence Rules
 
 When multiple scopes define the same variable, the most specific wins:
@@ -190,6 +194,9 @@ output = render_node_network(
     vars={"user_name": "Alice"}
 )
 ```
+
+As of v0.1.1, `render_node_network()` applies substitution per node before composing the output,
+which means scoped variables work consistently even in deeply nested hierarchies.
 
 ### File-First Mode
 
