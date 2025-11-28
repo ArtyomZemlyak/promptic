@@ -4,13 +4,16 @@ from pathlib import Path
 from typing import Union
 
 from promptic.versioning.adapters.scanner import VersionedFileScanner, VersionInfo
+from promptic.versioning.config import ClassifierConfig, VersioningConfig
 from promptic.versioning.domain.cleanup import VersionCleanup
 from promptic.versioning.domain.errors import (
+    ClassifierNotFoundError,
     CleanupTargetNotFoundError,
     ExportDirectoryConflictError,
     ExportDirectoryExistsError,
     ExportError,
     InvalidCleanupTargetError,
+    InvalidVersionPatternError,
     VersionDetectionError,
     VersionNotFoundError,
     VersionResolutionCycleError,
@@ -22,6 +25,12 @@ from promptic.versioning.domain.resolver import (
     VersionSpec,
 )
 from promptic.versioning.utils.semantic_version import SemanticVersion
+
+# Import VersioningSettings only if pydantic-settings is available
+try:
+    from promptic.versioning.config import VersioningSettings
+except ImportError:
+    VersioningSettings = None  # type: ignore[misc, assignment]
 
 
 def export_version(
@@ -44,23 +53,33 @@ def cleanup_exported_version(
 
 
 __all__ = [
+    # Configuration models
+    "VersioningConfig",
+    "VersioningSettings",
+    "ClassifierConfig",
+    # Errors
     "VersionNotFoundError",
     "VersionDetectionError",
     "VersionResolutionCycleError",
+    "InvalidVersionPatternError",
+    "ClassifierNotFoundError",
     "ExportError",
     "ExportDirectoryExistsError",
     "ExportDirectoryConflictError",
     "InvalidCleanupTargetError",
     "CleanupTargetNotFoundError",
+    # Resolvers and scanners
     "VersionResolver",
     "HierarchicalVersionResolver",
     "VersionSpec",
     "VersionedFileScanner",
     "VersionInfo",
     "SemanticVersion",
+    # Exporter
     "VersionExporter",
     "ExportResult",
     "VersionCleanup",
+    # Convenience functions
     "export_version",
     "cleanup_exported_version",
 ]

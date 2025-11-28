@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Union
+from typing import TYPE_CHECKING, Dict, Union
 
 from promptic.versioning.domain.errors import VersionResolutionCycleError
 from promptic.versioning.utils.logging import get_logger, log_version_operation
+
+if TYPE_CHECKING:
+    from promptic.versioning.config import VersioningConfig
 
 logger = get_logger(__name__)
 
@@ -25,19 +28,26 @@ class VersionResolver(ABC):
     """
 
     @abstractmethod
-    def resolve_version(self, path: str, version_spec: VersionSpec) -> str:
+    def resolve_version(
+        self,
+        path: str,
+        version_spec: VersionSpec,
+        classifier: dict[str, str] | None = None,
+    ) -> str:
         """
         Resolve version from directory path and version specification.
 
         Args:
             path: Directory path containing versioned files
             version_spec: Version specification ("latest", "v1", "v1.1", "v1.1.1", or dict)
+            classifier: Optional classifier filter (e.g., {"lang": "ru"})
 
         Returns:
             Resolved file path
 
         Raises:
             VersionNotFoundError: If requested version doesn't exist
+            ClassifierNotFoundError: If requested classifier value doesn't exist
         """
         pass
 
@@ -52,6 +62,7 @@ class HierarchicalVersionResolver(VersionResolver):
     - If a path pattern matches, use the specified version
     - If no pattern matches, default to "latest" for nested prompts
     - Detects circular version references to prevent infinite loops
+    - Classifier is propagated through the resolution chain for consistent filtering
     """
 
     def __init__(self, base_resolver: VersionResolver) -> None:
@@ -64,9 +75,14 @@ class HierarchicalVersionResolver(VersionResolver):
         self.base_resolver = base_resolver
         self._resolution_stack: list[str] = []  # Track resolution path for cycle detection
 
-    def resolve_version(self, path: str, version_spec: VersionSpec) -> str:
+    def resolve_version(
+        self,
+        path: str,
+        version_spec: VersionSpec,
+        classifier: dict[str, str] | None = None,
+    ) -> str:
         """
-        Resolve version using hierarchical specifications.
+        Resolve version using hierarchical specifications with classifier propagation.
 
         # AICODE-NOTE: Hierarchical resolution strategy:
         # 1. If version_spec is a string, delegate to base resolver (simple case)
@@ -76,10 +92,13 @@ class HierarchicalVersionResolver(VersionResolver):
         #    - Default to "latest" for unmatched paths
         # 3. Cycle detection: Track resolution path, raise error if cycle detected
         # 4. Default latest behavior: Nested prompts use latest if not explicitly specified
+        # 5. Classifier propagation: Classifier filter is passed through the entire
+        #    resolution chain to ensure consistent filtering across hierarchical prompts
 
         Args:
             path: Directory path containing versioned files
             version_spec: Version specification (string or hierarchical dict)
+            classifier: Optional classifier filter (e.g., {"lang": "ru"})
 
         Returns:
             Resolved file path
@@ -87,10 +106,11 @@ class HierarchicalVersionResolver(VersionResolver):
         Raises:
             VersionNotFoundError: If requested version doesn't exist
             VersionResolutionCycleError: If circular version references detected
+            ClassifierNotFoundError: If requested classifier value doesn't exist
         """
         # If version_spec is a string, delegate to base resolver
         if isinstance(version_spec, str):
-            return self.base_resolver.resolve_version(path, version_spec)
+            return self.base_resolver.resolve_version(path, version_spec, classifier)
 
         # Hierarchical specification (dict)
         if not isinstance(version_spec, dict):
@@ -109,15 +129,16 @@ class HierarchicalVersionResolver(VersionResolver):
         self._resolution_stack.append(path)
 
         try:
-
             # Resolve using matched version (or "latest" if no match)
-            resolved = self.base_resolver.resolve_version(path, matched_version)
+            # Propagate classifier through the resolution chain
+            resolved = self.base_resolver.resolve_version(path, matched_version, classifier)
 
             log_version_operation(
                 logger,
                 "hierarchical_version_resolved",
                 version=matched_version,
                 path=path,
+                classifier=str(classifier) if classifier else None,
             )
 
             return resolved

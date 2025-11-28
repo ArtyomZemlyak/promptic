@@ -16,6 +16,7 @@ from promptic.versioning.utils.logging import get_logger, log_version_operation
 
 if TYPE_CHECKING:
     from promptic.versioning.adapters.filesystem_exporter import FileSystemExporter
+    from promptic.versioning.config import VersioningConfig
 
 logger = get_logger(__name__)
 
@@ -52,17 +53,23 @@ class VersionExporter:
         self,
         version_resolver: Optional[VersionResolver] = None,
         filesystem_exporter: Optional["FileSystemExporter"] = None,
+        versioning_config: Optional["VersioningConfig"] = None,
     ) -> None:
         """
         Initialize version exporter.
 
+        # AICODE-NOTE: Extended in 009-advanced-versioning to accept versioning_config
+        # for configurable version detection patterns.
+
         Args:
             version_resolver: Version resolver for resolving versions during export
             filesystem_exporter: Filesystem exporter adapter for filesystem operations
+            versioning_config: Optional versioning configuration for custom patterns
         """
         from promptic.versioning.adapters.filesystem_exporter import FileSystemExporter
 
-        self.version_resolver = version_resolver or VersionedFileScanner()
+        self._versioning_config = versioning_config
+        self.version_resolver = version_resolver or VersionedFileScanner(config=versioning_config)
         self.filesystem_exporter = filesystem_exporter or FileSystemExporter()
 
     def export_version(
@@ -72,6 +79,7 @@ class VersionExporter:
         target_dir: str,
         overwrite: bool = False,
         vars: Optional[dict[str, Any]] = None,
+        classifier: Optional[dict[str, str]] = None,
     ) -> ExportResult:
         """
         Export complete version snapshot of prompt hierarchy.
@@ -81,6 +89,9 @@ class VersionExporter:
         # 2. _build_file_mapping() - builds source->target file mapping
         # 3. _create_content_processor() - creates processor for path resolution and vars
         # 4. _execute_export() - performs atomic export with cleanup on failure
+        #
+        # Extended in 009-advanced-versioning to support classifier parameter for
+        # filtering files by language/audience/environment classifiers.
 
         Args:
             source_path: Source prompt hierarchy path
@@ -88,6 +99,7 @@ class VersionExporter:
             target_dir: Target export directory
             overwrite: Whether to overwrite existing target directory
             vars: Optional variables for substitution
+            classifier: Optional classifier filter (e.g., {"lang": "ru"})
 
         Returns:
             ExportResult with root prompt content and exported files
@@ -95,6 +107,7 @@ class VersionExporter:
         Raises:
             ExportError: If export fails (missing files, permission errors)
             ExportDirectoryExistsError: If target directory exists without overwrite
+            ClassifierNotFoundError: If requested classifier value doesn't exist
         """
         target = Path(target_dir)
 
@@ -107,7 +120,7 @@ class VersionExporter:
 
         # Step 1: Validate and resolve root
         resolved_root, source_base = self._validate_and_resolve_root(
-            source_path, version_spec, target
+            source_path, version_spec, target, classifier
         )
         root_path = Path(resolved_root)
 
@@ -126,7 +139,11 @@ class VersionExporter:
         return self._execute_export(file_mapping, target, root_path, content_processor)
 
     def _validate_and_resolve_root(
-        self, source_path: str, version_spec: VersionSpec, target: Path
+        self,
+        source_path: str,
+        version_spec: VersionSpec,
+        target: Path,
+        classifier: Optional[dict[str, str]] = None,
     ) -> tuple[str, Path]:
         """
         Validate export target and resolve root prompt file.
@@ -135,23 +152,28 @@ class VersionExporter:
         # - Resolving directory sources to versioned files via version_resolver
         # - Validating that the resolved root file exists
         # - Determining the source_base for relative path calculations
+        # - Passing classifier filter to version resolution
 
         Args:
             source_path: Source path (file or directory)
             version_spec: Version specification
             target: Target export directory
+            classifier: Optional classifier filter (e.g., {"lang": "ru"})
 
         Returns:
             Tuple of (resolved_root_path, source_base_path)
 
         Raises:
             ExportError: If root file cannot be found
+            ClassifierNotFoundError: If requested classifier value doesn't exist
         """
         source = Path(source_path)
 
-        # Resolve root prompt version
+        # Resolve root prompt version with classifier filtering
         if source.is_dir():
-            resolved_root = self.version_resolver.resolve_version(str(source), version_spec)
+            resolved_root = self.version_resolver.resolve_version(
+                str(source), version_spec, classifier
+            )
         else:
             resolved_root = str(source)
 
@@ -604,8 +626,22 @@ class VersionExporter:
         return references
 
     def _extract_version_from_path(self, path: Path) -> str:
-        """Extract version string from file path for replacement."""
+        """Extract version string from file path for replacement.
+
+        # AICODE-NOTE: Uses configured version pattern from VersionedFileScanner
+        if available, otherwise falls back to default underscore pattern.
+        """
         name = path.stem
+
+        # Use configured pattern if available
+        if isinstance(self.version_resolver, VersionedFileScanner):
+            pattern = self.version_resolver.version_pattern
+            match = pattern._compiled.search(name)
+            if match:
+                return match.group(0)
+            return ""
+
+        # Fallback to default underscore pattern
         version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", name)
         if version_match:
             return version_match.group(0)

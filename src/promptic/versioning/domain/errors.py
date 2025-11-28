@@ -3,6 +3,71 @@
 from __future__ import annotations
 
 
+class InvalidVersionPatternError(Exception):
+    """Raised when custom version pattern is malformed.
+
+    # AICODE-NOTE: This error is raised during config validation when a custom
+    # version_pattern doesn't meet requirements (invalid regex or missing named groups).
+    """
+
+    def __init__(
+        self,
+        pattern: str,
+        reason: str,
+        message: str | None = None,
+    ) -> None:
+        """
+        Initialize InvalidVersionPatternError.
+
+        Args:
+            pattern: The invalid pattern string
+            reason: Why the pattern is invalid
+            message: Custom error message
+        """
+        self.pattern = pattern
+        self.reason = reason
+        if message is None:
+            message = f"Invalid version pattern '{pattern}': {reason}"
+        self.message = message
+        super().__init__(self.message)
+
+
+class ClassifierNotFoundError(Exception):
+    """Raised when requested classifier value doesn't exist.
+
+    # AICODE-NOTE: This error is raised during version resolution when a requested
+    # classifier value doesn't exist in any versioned file in the directory.
+    """
+
+    def __init__(
+        self,
+        classifier_name: str,
+        requested_value: str,
+        available_values: list[str] | None = None,
+        message: str | None = None,
+    ) -> None:
+        """
+        Initialize ClassifierNotFoundError.
+
+        Args:
+            classifier_name: Name of the classifier (e.g., "lang")
+            requested_value: Value that was requested (e.g., "es")
+            available_values: Values that exist (e.g., ["en", "ru"])
+            message: Custom error message
+        """
+        self.classifier_name = classifier_name
+        self.requested_value = requested_value
+        self.available_values = available_values or []
+        if message is None:
+            values_str = ", ".join(self.available_values) if self.available_values else "none"
+            message = (
+                f"Classifier '{classifier_name}' value '{requested_value}' not found. "
+                f"Available: {values_str}"
+            )
+        self.message = message
+        super().__init__(self.message)
+
+
 class VersionNotFoundError(Exception):
     """Raised when a requested version doesn't exist in directory."""
 

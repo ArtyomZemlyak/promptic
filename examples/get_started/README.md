@@ -170,6 +170,37 @@ python3 export_demo.py
 
 ---
 
+### 9. Advanced Versioning (`9-advanced-versioning/`)
+
+Demonstrates the advanced versioning features from spec 009: custom delimiters, pre-releases, classifiers, and custom patterns.
+
+**What you'll learn:**
+- How to use different version delimiters (underscore, hyphen, dot)
+- How to handle pre-release versions (-alpha, -beta, -rc)
+- How to use classifiers for language/audience variants
+- How to define custom version patterns
+- How to configure versioning via `VersioningConfig`
+
+**Files:**
+- `prompts_*/` - Various prompt directories demonstrating each feature
+- `demo_delimiters.py` - Custom delimiter examples
+- `demo_prereleases.py` - Pre-release handling
+- `demo_classifiers.py` - Classifier (language) examples
+- `demo_custom_patterns.py` - Custom regex patterns
+- `demo_config.py` - Configuration overview
+
+**Run it:**
+```bash
+cd examples/get_started/9-advanced-versioning
+python demo_delimiters.py
+python demo_prereleases.py
+python demo_classifiers.py
+python demo_custom_patterns.py
+python demo_config.py
+```
+
+---
+
 ## Next Steps
 
 After completing these examples, check out:

@@ -1,4 +1,8 @@
-"""Structured logging configuration for versioning operations."""
+"""Structured logging configuration for versioning operations.
+
+# AICODE-NOTE: Extended in 009-advanced-versioning to support DEBUG level
+# logging for configuration and pattern details, and INFO level for results.
+"""
 
 from __future__ import annotations
 
@@ -55,6 +59,12 @@ def log_version_operation(
     """
     Log a versioning operation with structured fields.
 
+    # AICODE-NOTE: Extended in 009-advanced-versioning to support different
+    # log levels for different operation types:
+    # - DEBUG: config_loaded, pattern_compiled, classifier_matched
+    # - INFO: version_resolved, export_started, export_completed
+    # - WARNING: prerelease_only_warning
+
     Args:
         logger: Logger instance
         operation: Operation type (e.g., "version_resolved", "export_started")
@@ -73,4 +83,21 @@ def log_version_operation(
 
     # Format as structured log message
     field_str = ", ".join(f"{k}={v}" for k, v in fields.items())
-    logger.info(f"Versioning operation: {field_str}")
+
+    # Determine log level based on operation type
+    debug_operations = {
+        "config_loaded",
+        "pattern_compiled",
+        "classifier_matched",
+        "directory_scanned",
+    }
+    warning_operations = {
+        "prerelease_only_warning",
+    }
+
+    if operation in debug_operations:
+        logger.debug(f"Versioning operation: {field_str}")
+    elif operation in warning_operations:
+        logger.warning(f"Versioning operation: {field_str}")
+    else:
+        logger.info(f"Versioning operation: {field_str}")

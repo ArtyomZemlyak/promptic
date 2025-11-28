@@ -49,8 +49,9 @@ print(yaml_output)
 For more control, load and render separately:
 
 ```python
-from promptic.sdk.nodes import load_node_network, render_node_network
 from pathlib import Path
+
+from promptic.sdk.nodes import load_node_network, render_node_network
 
 # Load a node network from a root file
 network = load_node_network(Path("prompts/root.md"))
@@ -78,8 +79,9 @@ print(output_with_vars)
 Load and export specific versions of your prompts:
 
 ```python
-from promptic import load_prompt, export_version
 from pathlib import Path
+
+from promptic import export_version, load_prompt
 
 # Load a specific version
 prompt = load_prompt(
@@ -236,6 +238,10 @@ This library follows strict code quality standards:
 See `AGENTS.md` for detailed contribution guidelines and development workflow.
 
 ## Changelog
+
+### v0.1.3 (2025-11-28)
+
+- Version bump
 
 ### v0.1.2 (2025-01-28)
 

@@ -8,12 +8,15 @@
 #
 #              Added render() function that combines load_node_network + render_node_network
 #              for simplified one-step rendering from file paths.
+#
+#              Extended in 009-advanced-versioning to support versioning_config parameter
+#              for configurable delimiters, patterns, prereleases, and classifiers.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from promptic.context.nodes.models import NetworkConfig
 from promptic.sdk.nodes import load_node_network, render_node_network
@@ -27,6 +30,9 @@ from promptic.versioning import (
     VersionSpec,
 )
 
+if TYPE_CHECKING:
+    from promptic.versioning.config import VersioningConfig
+
 
 def render(
     path: str | Path,
@@ -38,6 +44,8 @@ def render(
     version: Optional[VersionSpec] = None,
     export_to: str | Path | None = None,
     overwrite: bool = False,
+    classifier: dict[str, str] | None = None,
+    versioning_config: "VersioningConfig | None" = None,
 ) -> str | ExportResult:
     """
     Load and render a prompt file in one convenient function call.
@@ -49,6 +57,9 @@ def render(
     #
     # When export_to is provided, it also handles version export functionality,
     # eliminating the need to call export_version() separately.
+    #
+    # Extended in 009-advanced-versioning to accept versioning_config parameter
+    # for configurable delimiters, patterns, prereleases, and classifiers.
 
     This function provides the complete promptic workflow:
     1. Load the file and build a node network (with reference resolution)
@@ -74,6 +85,13 @@ def render(
         export_to: Optional directory path to export files (instead of returning string)
             When provided, files are exported with version suffixes removed
         overwrite: Whether to overwrite existing export directory (default: False)
+        classifier: Optional classifier filter (NEW in 009-advanced-versioning)
+            - {"lang": "ru"} → filter to Russian language files
+            - Multiple classifiers: {"lang": "ru", "tone": "formal"}
+            - Applied when version is specified or export_to is used
+        versioning_config: Optional versioning configuration (NEW in 009-advanced-versioning)
+            - Controls delimiter ("_", "-", "."), custom patterns, prerelease handling
+            - If None, uses default configuration (backward compatible)
 
     Returns:
         - str: Rendered content as string (when export_to is None)
@@ -86,6 +104,8 @@ def render(
         NodeNetworkValidationError: If network validation fails (cycles, depth)
         ExportError: If export fails (when export_to is provided)
         ExportDirectoryExistsError: If target exists without overwrite (when export_to is provided)
+        InvalidVersionPatternError: If custom pattern is malformed
+        ClassifierNotFoundError: If requested classifier value doesn't exist
 
     Example:
         >>> # Simple: render markdown file with all references inlined
@@ -108,6 +128,16 @@ def render(
         >>> # With version specification
         >>> output = render("prompts/task.md", version="v1.0.0")
 
+        >>> # With custom delimiter configuration
+        >>> from promptic.versioning import VersioningConfig
+        >>> config = VersioningConfig(delimiter="-")
+        >>> output = render("prompts/task.md", versioning_config=config)
+
+        >>> # With classifier filter (select Russian language variant)
+        >>> from promptic.versioning import VersioningConfig, ClassifierConfig
+        >>> config = VersioningConfig(classifiers={"lang": ClassifierConfig(name="lang", values=["en", "ru"], default="en")})
+        >>> output = render("prompts/task/", version="latest", classifier={"lang": "ru"}, versioning_config=config)
+
         >>> # Export to directory instead of returning string
         >>> result = render(
         ...     "prompts/task.md",
@@ -129,7 +159,7 @@ def render(
         import shutil
         import tempfile
 
-        exporter = VersionExporter()
+        exporter = VersionExporter(versioning_config=versioning_config)
         version_spec = version
 
         # Determine export directory
@@ -141,6 +171,7 @@ def render(
                 target_dir=str(export_to),
                 overwrite=overwrite,
                 vars=vars,
+                classifier=classifier,
             )
             # Return ExportResult as before
             return export_result
@@ -153,6 +184,7 @@ def render(
                     target_dir=temp_dir,
                     overwrite=True,
                     vars=vars,
+                    classifier=classifier,
                 )
                 # Return only the rendered content string
                 return export_result.root_prompt_content
@@ -160,13 +192,14 @@ def render(
     # Export without version (just export_to)
     if export_to is not None:
         # Use version export workflow with "latest" version
-        exporter = VersionExporter()
+        exporter = VersionExporter(versioning_config=versioning_config)
         return exporter.export_version(
             source_path=str(path),
             version_spec="latest",
             target_dir=str(export_to),
             overwrite=overwrite,
             vars=vars,
+            classifier=classifier,
         )
 
     # Standard rendering workflow (no version, no export)
@@ -183,6 +216,8 @@ def load_prompt(
     path: str | Path,
     *,
     version: VersionSpec = "latest",
+    classifier: dict[str, str] | None = None,
+    versioning_config: "VersioningConfig | None" = None,
 ) -> str:
     """
     Load a prompt from a directory with version-aware resolution.
@@ -191,16 +226,26 @@ def load_prompt(
     It uses VersionedFileScanner for simple version specs and HierarchicalVersionResolver
     for hierarchical specifications. Supports "latest" (default), specific versions
     (v1, v1.1, v1.1.1), and hierarchical version specifications (dict).
+    #
+    # Extended in 009-advanced-versioning to support versioning_config and classifier
+    # parameters for configurable version detection and classifier filtering.
 
     Args:
         path: Directory path containing versioned prompt files
         version: Version specification ("latest", "v1", "v1.1", "v1.1.1", or dict)
+        classifier: Optional classifier filter (NEW in 009-advanced-versioning)
+            - {"lang": "ru"} → filter to Russian language files
+            - Multiple classifiers: {"lang": "ru", "tone": "formal"}
+        versioning_config: Optional versioning configuration (NEW in 009-advanced-versioning)
+            - Controls delimiter, patterns, prerelease handling, classifier definitions
+            - If None, uses default configuration (backward compatible)
 
     Returns:
         Content of the resolved prompt file
 
     Raises:
         VersionNotFoundError: If requested version doesn't exist
+        ClassifierNotFoundError: If requested classifier value doesn't exist
         FileNotFoundError: If directory doesn't exist
 
     Example:
@@ -210,6 +255,13 @@ def load_prompt(
         >>> content = load_prompt("prompts/task1/", version="v1.1.0")
         >>> # Load with hierarchical version specification
         >>> content = load_prompt("prompts/task1/", version={"root": "v1", "instructions/process": "v2"})
+        >>> # Load with custom delimiter
+        >>> from promptic.versioning import VersioningConfig
+        >>> config = VersioningConfig(delimiter="-")
+        >>> content = load_prompt("prompts/task1/", versioning_config=config)
+        >>> # Load with classifier
+        >>> config = VersioningConfig(classifiers={"lang": ClassifierConfig(...)})
+        >>> content = load_prompt("prompts/task1/", classifier={"lang": "ru"}, versioning_config=config)
     """
     path_obj = Path(path)
     if not path_obj.exists():
@@ -217,12 +269,14 @@ def load_prompt(
 
     # Use hierarchical resolver if version is a dict, otherwise use simple scanner
     if isinstance(version, dict):
-        base_resolver = VersionedFileScanner()
+        base_resolver = VersionedFileScanner(config=versioning_config)
         resolver: VersionResolver = HierarchicalVersionResolver(base_resolver)
+        # Hierarchical resolver doesn't support classifier yet
+        resolved_path = resolver.resolve_version(str(path_obj), version)
     else:
-        resolver = VersionedFileScanner()
+        scanner = VersionedFileScanner(config=versioning_config)
+        resolved_path = scanner.resolve_version(str(path_obj), version, classifier=classifier)
 
-    resolved_path = resolver.resolve_version(str(path_obj), version)
     return Path(resolved_path).read_text(encoding="utf-8")
 
 
@@ -233,6 +287,8 @@ def export_version(
     *,
     overwrite: bool = False,
     vars: dict[str, Any] | None = None,
+    classifier: dict[str, str] | None = None,
+    versioning_config: "VersioningConfig | None" = None,
 ) -> ExportResult:
     """
     Export a complete version snapshot of a prompt hierarchy.
@@ -241,6 +297,9 @@ def export_version(
     the hierarchical directory structure. Path references in files are resolved
     to work correctly in the exported structure. Export is atomic (all or nothing).
     Supports variable substitution using the vars parameter.
+    #
+    # Extended in 009-advanced-versioning to support versioning_config and classifier
+    # parameters for configurable version detection and classifier filtering.
 
     Args:
         source_path: Source prompt hierarchy path (directory or file)
@@ -248,6 +307,10 @@ def export_version(
         target_dir: Target export directory
         overwrite: Whether to overwrite existing target directory
         vars: Optional dictionary of variables for substitution
+        classifier: Optional classifier filter (NEW in 009-advanced-versioning)
+            - {"lang": "ru"} → export only Russian language files
+        versioning_config: Optional versioning configuration (NEW in 009-advanced-versioning)
+            - Controls delimiter, patterns, prerelease handling, classifier definitions
 
     Returns:
         ExportResult with root prompt content and exported files
@@ -255,6 +318,7 @@ def export_version(
     Raises:
         ExportError: If export fails (missing files, permission errors)
         ExportDirectoryExistsError: If target directory exists without overwrite
+        ClassifierNotFoundError: If requested classifier value doesn't exist
 
     Example:
         >>> result = export_version(
@@ -265,14 +329,25 @@ def export_version(
         ... )
         >>> print(result.root_prompt_content)
         >>> print(f"Exported {len(result.exported_files)} files")
+
+        >>> # With custom delimiter
+        >>> from promptic.versioning import VersioningConfig
+        >>> config = VersioningConfig(delimiter="-")
+        >>> result = export_version(
+        ...     source_path="prompts/task1/",
+        ...     version_spec="v2",
+        ...     target_dir="export/",
+        ...     versioning_config=config
+        ... )
     """
-    exporter = VersionExporter()
+    exporter = VersionExporter(versioning_config=versioning_config)
     return exporter.export_version(
         source_path=str(source_path),
         version_spec=version_spec,
         target_dir=str(target_dir),
         overwrite=overwrite,
         vars=vars,
+        classifier=classifier,
     )
 
 
