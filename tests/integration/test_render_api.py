@@ -169,6 +169,61 @@ def test_render_reusable_with_variables(tmp_path: Path):
     assert output1 != output2
 
 
+def _create_versioned_prompt(tmp_path: Path) -> Path:
+    """Create a directory with versioned root and nested prompts for path resolution tests."""
+    prompt_dir = tmp_path / "versioned_prompt"
+    prompt_dir.mkdir()
+
+    instructions_dir = prompt_dir / "instructions"
+    instructions_dir.mkdir()
+    (instructions_dir / "process_v1.md").write_text("## Process v1\nStable flow")
+    (instructions_dir / "process_v2.md").write_text("## Process v2\nLatest flow")
+
+    root_template = """# Root {tag}
+
+[Explicit file](instructions/process_v1.md)
+[No version](instructions/process.md)
+[No extension](instructions/process)
+[Directory hint](instructions)
+"""
+    (prompt_dir / "task_v1.md").write_text(root_template.format(tag="v1"))
+    (prompt_dir / "task_v2.md").write_text(root_template.format(tag="v2"))
+
+    return prompt_dir
+
+
+def test_render_supports_prompt_path_hints(tmp_path: Path):
+    """Render should accept directories, base filenames, and version-less hints."""
+    prompt_dir = _create_versioned_prompt(tmp_path)
+
+    # Directory path + explicit version
+    dir_output = render(prompt_dir, version="v1", render_mode="file_first")
+    assert "Root v1" in dir_output
+
+    # File hint without version suffix but with extension
+    file_hint = prompt_dir / "task.md"
+    file_output = render(file_hint, version="v2", render_mode="file_first")
+    assert "Root v2" in file_output
+
+    # File hint without extension defaults to latest version
+    base_hint = prompt_dir / "task"
+    latest_output = render(base_hint, render_mode="file_first")
+    assert "Root v2" in latest_output
+
+
+def test_render_resolves_nested_prompt_hints(tmp_path: Path):
+    """Internal references without version or extension should resolve automatically."""
+    prompt_dir = _create_versioned_prompt(tmp_path)
+
+    latest_output = render(prompt_dir, render_mode="full")
+    assert "Root v2" in latest_output
+    assert "Process v2" in latest_output
+
+    pinned_output = render(prompt_dir, version="v1", render_mode="full")
+    assert "Root v1" in pinned_output
+    assert "Process v1" in pinned_output
+
+
 # =============================================================================
 # REGRESSION TESTS - SOLID Refactoring (008-solid-refactor)
 # =============================================================================

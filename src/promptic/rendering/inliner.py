@@ -88,6 +88,9 @@ class ReferenceInliner:
 
         # Create lookup function that finds nodes by path
         def node_lookup(path: str) -> Optional[ContextNode]:
+            resolved = self._lookup_resolved_reference(node, path, network)
+            if resolved is not None:
+                return resolved
             return self._find_node(path, network)
 
         # Create content renderer that recursively processes child nodes
@@ -121,10 +124,68 @@ class ReferenceInliner:
         # that was repeated 12+ times in render_node_network. The lookup
         # strategy tries exact match, partial match, and suffix match
         # to handle various path formats (relative, absolute, with/without extension).
+        # Also handles versioned files by matching base names (without version suffix).
         """
+        from pathlib import Path
+        import re
+
+        # Normalize the search path
+        search_path = Path(path)
+        search_name = search_path.name
+        search_base = search_name.rsplit(".", 1)[0] if "." in search_name else search_name
+        search_ext = search_path.suffix
+
         for node_id, node in network.nodes.items():
+            node_path = Path(node_id)
+
+            # Exact match
             if path == str(node_id) or path in str(node_id) or str(node_id).endswith(path):
                 return node
+
+            # Match by base name (handles versioned files)
+            # Check if the node path ends with the same directory structure and base name
+            node_name = node_path.name
+            node_base = node_name.rsplit(".", 1)[0] if "." in node_name else node_name
+            node_ext = node_path.suffix
+
+            # Remove version suffix from node base name for comparison
+            version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", node_base)
+            if version_match:
+                node_base_no_version = node_base.replace(version_match.group(0), "")
+            else:
+                node_base_no_version = node_base
+
+            # Check if base names and extensions match, and directory structure matches
+            if (
+                node_base_no_version == search_base
+                and node_ext == search_ext
+                and (
+                    str(node_path.parent).endswith(str(search_path.parent))
+                    or str(search_path.parent) in str(node_path.parent)
+                )
+            ):
+                return node
+
+        return None
+
+    def _lookup_resolved_reference(
+        self, owner: ContextNode, path: str, network: NodeNetwork
+    ) -> Optional[ContextNode]:
+        """Return node using the resolver metadata captured during network build."""
+        resolved_candidates: list[str] = []
+
+        for reference in owner.references:
+            if reference.path != path:
+                continue
+            resolved_path = getattr(reference, "resolved_path", None)
+            if resolved_path:
+                resolved_candidates.append(resolved_path)
+
+        for candidate in resolved_candidates:
+            node = network.nodes.get(candidate)
+            if node is not None:
+                return node
+
         return None
 
     def _render_child(

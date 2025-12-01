@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional
 
 from promptic.context.nodes.errors import FormatDetectionError, FormatParseError
 from promptic.context.nodes.models import ContextNode, NetworkConfig, NodeNetwork
@@ -11,7 +11,12 @@ from promptic.context.variables import SubstitutionContext, VariableSubstitutor
 from promptic.format_parsers.registry import get_default_registry
 from promptic.pipeline.network.builder import NodeNetworkBuilder
 from promptic.rendering import ReferenceInliner
+from promptic.resolvers.filesystem import FilesystemReferenceResolver
 from promptic.versioning import VersionSpec
+from promptic.versioning.utils.path_resolver import PromptPathResolver
+
+if TYPE_CHECKING:
+    from promptic.versioning.config import VersioningConfig
 
 
 def load_node(path: Path | str) -> ContextNode:
@@ -180,6 +185,9 @@ def load_node_network(
     root_path: Path | str,
     config: NetworkConfig | None = None,
     version: Optional[VersionSpec] = None,
+    *,
+    classifier: dict[str, str] | None = None,
+    versioning_config: "VersioningConfig | None" = None,
 ) -> NodeNetwork:
     """Build a node network from a root path with recursive reference resolution.
 
@@ -196,11 +204,15 @@ def load_node_network(
         - No state mutation (pure function except for I/O)
 
     Args:
-        root_path: Path to root node file (relative or absolute)
+        root_path: Path or hint to the root prompt. Can be a specific file, a
+            base filename without version suffix, a base filename without
+            extension, or a directory containing versioned prompt files.
         config: Network configuration (limits).
             Defaults to NetworkConfig() with standard limits (max_depth=10,
             max_node_size=10MB, max_network_size=1000).
         version: Optional version specification for version-aware resolution.
+        classifier: Optional classifier filter applied to every version lookup.
+        versioning_config: Optional VersioningConfig shared across all resolvers.
 
     Returns:
         NodeNetwork instance with all nodes loaded, references resolved, and
@@ -225,11 +237,25 @@ def load_node_network(
         Total nodes: 5
     """
     path_obj = Path(root_path)
-    if not path_obj.exists():
-        raise FileNotFoundError(f"Root node file not found: {path_obj}")
+    base_dir = None if path_obj.is_absolute() else Path.cwd()
+    path_resolver = PromptPathResolver(versioning_config=versioning_config)
+    resolved_root = path_resolver.resolve(
+        raw_path=path_obj,
+        base_dir=base_dir,
+        version_spec=version,
+        classifier=classifier,
+        default_version=version or "latest",
+    )
 
-    builder = NodeNetworkBuilder()
-    return builder.build_network(path_obj, config, version=version)
+    resolver = FilesystemReferenceResolver(
+        root=resolved_root.parent,
+        version=version,
+        classifier=classifier,
+        versioning_config=versioning_config,
+    )
+
+    builder = NodeNetworkBuilder(resolver=resolver)
+    return builder.build_network(resolved_root, config, version=version)
 
 
 def render_node_network(

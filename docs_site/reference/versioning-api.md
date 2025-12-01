@@ -115,16 +115,24 @@ result = render(
 ) -> str | ExportResult
 ```
 
+`path` accepts several forms:
+
+- Exact prompt files (with or without explicit version suffix)
+- File hints without version suffix (use the `version` parameter or default to latest)
+- File hints without extensions (the resolver tries common extensions)
+- Directories that contain versioned prompt files
+
 #### Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | `str \| Path` | Path to prompt file |
+| `path` | `str \| Path` | Prompt file, base filename, or directory hint |
 | `target_format` | `str` | Output format: "markdown", "yaml", "json", "jinja2" |
 | `render_mode` | `str` | "full" (inline) or "file_first" (preserve refs) |
 | `vars` | `dict \| None` | Variables for substitution |
 | `config` | `NetworkConfig \| None` | Network configuration |
 | `version` | `VersionSpec \| None` | Version specification |
+| `classifier` | `dict \| None` | Classifier filter propagated to nested prompts |
 | `export_to` | `str \| Path \| None` | Export directory |
 | `overwrite` | `bool` | Overwrite existing export |
 | `versioning_config` | `VersioningConfig \| None` | Versioning configuration |

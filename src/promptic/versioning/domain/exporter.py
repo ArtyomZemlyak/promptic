@@ -220,7 +220,7 @@ class VersionExporter:
 
         # Discover all versioned files and explicitly referenced files
         all_versioned_files = self.discover_versioned_files(str(source_base), version_spec)
-        referenced_files = self.discover_referenced_files(str(root_path))
+        referenced_files = self.discover_referenced_files(str(root_path), source_base)
 
         # Process explicitly referenced files first
         for ref_file in referenced_files:
@@ -235,8 +235,14 @@ class VersionExporter:
 
             version_suffix = self._extract_version_from_path(ref_path)
             if version_suffix:
-                target_ref_file = target / ref_relative
+                # For explicitly referenced files, keep the version suffix in exported filename
+                # This allows mixing different versions of components in a single workflow
+                if ref_relative.parent != Path("."):
+                    target_ref_file = target / ref_relative.parent / ref_path.name
+                else:
+                    target_ref_file = target / ref_path.name
                 file_mapping[str(ref_path)] = str(target_ref_file)
+                # Track base name (without version) to skip automatic resolution conflicts
                 base_name = ref_path.name.replace(version_suffix, "")
                 base_path = ref_relative.parent / base_name
                 referenced_base_names[str(base_path)] = str(ref_path)
@@ -555,7 +561,9 @@ class VersionExporter:
 
         return []
 
-    def discover_referenced_files(self, prompt_path: str) -> list[str]:
+    def discover_referenced_files(
+        self, prompt_path: str, source_base: Path | None = None
+    ) -> list[str]:
         """
         Discover all files referenced by the prompt hierarchy.
 
@@ -563,9 +571,11 @@ class VersionExporter:
         # - Parses file content for common reference patterns (markdown links, includes, etc.)
         # - Recursively discovers referenced files
         # - Returns list of absolute file paths
+        # - Supports relative paths (../), absolute paths, and paths from root prompt
 
         Args:
             prompt_path: Path to root prompt file
+            source_base: Optional root directory for resolving paths from root prompt
 
         Returns:
             List of referenced file paths
@@ -587,7 +597,7 @@ class VersionExporter:
             # Read file content and extract references
             try:
                 content = path.read_text(encoding="utf-8")
-                references = self._extract_references(content, path)
+                references = self._extract_references(content, path, source_base)
 
                 for ref in references:
                     if ref not in discovered:
@@ -599,8 +609,16 @@ class VersionExporter:
 
         return list(discovered)
 
-    def _extract_references(self, content: str, base_path: Path) -> list[str]:
-        """Extract file references from content."""
+    def _extract_references(
+        self, content: str, base_path: Path, source_base: Path | None = None
+    ) -> list[str]:
+        """Extract file references from content.
+
+        Args:
+            content: File content to extract references from
+            base_path: Path to the file containing the references
+            source_base: Optional root directory for resolving paths from root prompt
+        """
         references: list[str] = []
         base_dir = base_path.parent
 
@@ -611,19 +629,160 @@ class VersionExporter:
             # Skip URLs and anchors
             if ref_path.startswith(("http://", "https://", "#")):
                 continue
-            resolved = (base_dir / ref_path).resolve()
-            if resolved.exists() and resolved.is_file():
-                references.append(str(resolved))
+            resolved = self._resolve_reference_path(ref_path, base_dir, source_base)
+            if resolved:
+                references.append(resolved)
 
         # Pattern for include directives: @include(path/to/file.md) or include: path/to/file.md
         include_pattern = re.compile(r"(?:@include|include:)\s*\(?([^)]+)\)?", re.IGNORECASE)
         for match in include_pattern.finditer(content):
             ref_path = match.group(1).strip()
-            resolved = (base_dir / ref_path).resolve()
-            if resolved.exists() and resolved.is_file():
-                references.append(str(resolved))
+            resolved = self._resolve_reference_path(ref_path, base_dir, source_base)
+            if resolved:
+                references.append(resolved)
 
         return references
+
+    def _resolve_reference_path(
+        self, ref_path: str, base_dir: Path, source_base: Path | None = None
+    ) -> str | None:
+        """Resolve a reference path, supporting multiple path types.
+
+        Supports:
+        - Absolute paths (starting with /)
+        - Relative paths with .. (e.g., ../sub_task/sub_task.md)
+        - Paths from root prompt (e.g., sub_task/sub_task.md)
+
+        Args:
+            ref_path: Reference path from markdown link or include directive
+            base_dir: Directory of the file containing the reference
+            source_base: Optional root directory for resolving paths from root prompt
+
+        Returns:
+            Resolved absolute file path, or None if not found
+        """
+        # Handle absolute paths
+        if ref_path.startswith("/"):
+            abs_path = Path(ref_path)
+            if abs_path.exists() and abs_path.is_file():
+                return str(abs_path)
+            # Try version resolution for absolute paths
+            if abs_path.parent.exists() and abs_path.parent.is_dir():
+                return self._try_version_resolution(ref_path, abs_path.parent, abs_path.name)
+            return None
+
+        # Handle relative paths with .. (parent directory navigation)
+        if ".." in ref_path:
+            # Resolve relative path from base_dir
+            resolved = (base_dir / ref_path).resolve()
+            if resolved.exists() and resolved.is_file():
+                return str(resolved)
+            # Try version resolution
+            if resolved.parent.exists() and resolved.parent.is_dir():
+                return self._try_version_resolution(ref_path, resolved.parent, resolved.name)
+            return None
+
+        # Try direct path resolution first (relative to current file)
+        resolved = (base_dir / ref_path).resolve()
+        if resolved.exists() and resolved.is_file():
+            return str(resolved)
+
+        # If direct path doesn't exist, try paths from root prompt (if source_base provided)
+        if source_base is not None:
+            # Try resolving from root prompt directory
+            root_resolved = (source_base / ref_path).resolve()
+            if root_resolved.exists() and root_resolved.is_file():
+                return str(root_resolved)
+            # Try version resolution from root
+            if root_resolved.parent.exists() and root_resolved.parent.is_dir():
+                result = self._try_version_resolution(
+                    ref_path, root_resolved.parent, root_resolved.name
+                )
+                if result:
+                    return result
+
+        # If direct path doesn't exist, try version resolution
+        # Extract directory and filename from reference path
+        ref_path_obj = Path(ref_path)
+        ref_name = ref_path_obj.name
+
+        # Try to find the directory containing the referenced file
+        # First try relative to base_dir (same directory or subdirectory)
+        ref_dir = base_dir / ref_path_obj.parent
+
+        # If that doesn't exist, try searching in parent directories
+        # This handles cases where reference is to a sibling directory
+        # (e.g., tasks/definition.md references sub_task/sub_task.md)
+        if not ref_dir.exists() or not ref_dir.is_dir():
+            # Get the first directory component from the reference path
+            ref_dir_parts = ref_path_obj.parent.parts
+            if ref_dir_parts and ref_dir_parts[0] != "." and ref_dir_parts[0] != "":
+                target_dir_name = ref_dir_parts[0]
+                # Search up the directory tree to find a directory with this name
+                current = base_dir
+                max_levels = 5  # Limit search depth to avoid infinite loops
+                for _ in range(max_levels):
+                    potential_dir = current / target_dir_name
+                    if potential_dir.exists() and potential_dir.is_dir():
+                        # Found the target directory, now build the full path
+                        ref_dir = potential_dir
+                        # Add any remaining path components
+                        for part in ref_dir_parts[1:]:
+                            if part != "." and part != "":
+                                ref_dir = ref_dir / part
+                        break
+                    # Go up one level
+                    if current.parent == current:  # Reached filesystem root
+                        break
+                    current = current.parent
+                else:
+                    # Couldn't find the directory
+                    ref_dir = None
+
+        # Try version resolution if directory found
+        if ref_dir and ref_dir.exists() and ref_dir.is_dir():
+            return self._try_version_resolution(ref_path, ref_dir, ref_name)
+
+        return None
+
+    def _try_version_resolution(self, ref_path: str, ref_dir: Path, ref_name: str) -> str | None:
+        """Try to resolve a file using version resolution.
+
+        Args:
+            ref_path: Original reference path (for context)
+            ref_dir: Directory to search for versioned files
+            ref_name: Expected filename (without version suffix)
+
+        Returns:
+            Resolved file path, or None if not found
+        """
+        try:
+            # Use version resolver to find versioned file with "latest" version
+            if isinstance(self.version_resolver, VersionedFileScanner):
+                resolved_path = self.version_resolver.resolve_version(
+                    str(ref_dir), version_spec="latest"
+                )
+                if Path(resolved_path).exists() and Path(resolved_path).is_file():
+                    # Check if the resolved file matches the base name (without version)
+                    resolved_name = Path(resolved_path).name
+                    # Extract base name from reference (without extension)
+                    ref_base = ref_name.rsplit(".", 1)[0] if "." in ref_name else ref_name
+                    # Extract base name from resolved file (remove version suffix)
+                    resolved_base = (
+                        resolved_name.rsplit(".", 1)[0] if "." in resolved_name else resolved_name
+                    )
+                    # Remove version suffix from resolved base name
+                    version_match = re.search(r"_v(\d+(?:\.\d+)*(?:\.\d+)?)", resolved_base)
+                    if version_match:
+                        resolved_base = resolved_base.replace(version_match.group(0), "")
+                    # Check if base names match
+                    if resolved_base == ref_base:
+                        return resolved_path
+        except Exception:
+            # If version resolution fails, return None (file not found)
+            pass
+
+        return None
 
     def _extract_version_from_path(self, path: Path) -> str:
         """Extract version string from file path for replacement.

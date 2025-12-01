@@ -41,7 +41,7 @@ def render(
     render_mode: Literal["full", "file_first"] = "full",
     vars: dict[str, Any] | None = None,
     config: NetworkConfig | None = None,
-    version: Optional[VersionSpec] = None,
+    version: VersionSpec = "latest",
     export_to: str | Path | None = None,
     overwrite: bool = False,
     classifier: dict[str, str] | None = None,
@@ -67,7 +67,11 @@ def render(
     3. Optionally export to directory (when export_to is provided)
 
     Args:
-        path: Path to the prompt file to render (markdown, yaml, json, jinja2)
+        path: Path or hint to the prompt. Accepts:
+            - Concrete file paths (with or without explicit version suffix)
+            - File paths without version suffix (use version parameter or default latest)
+            - Base filenames without extension (resolver tries known extensions)
+            - Directory paths that contain versioned prompt files
         target_format: Target output format (default: "markdown")
             - "markdown": Markdown format
             - "yaml": YAML format
@@ -88,7 +92,7 @@ def render(
         classifier: Optional classifier filter (NEW in 009-advanced-versioning)
             - {"lang": "ru"} → filter to Russian language files
             - Multiple classifiers: {"lang": "ru", "tone": "formal"}
-            - Applied when version is specified or export_to is used
+            - Applied when version is specified or when resolving directories/file hints
         versioning_config: Optional versioning configuration (NEW in 009-advanced-versioning)
             - Controls delimiter ("_", "-", "."), custom patterns, prerelease handling
             - If None, uses default configuration (backward compatible)
@@ -149,67 +153,42 @@ def render(
         >>> print(result.root_prompt_content)
     """
     # AICODE-NOTE: Version handling strategy:
-    # - If version is specified, always use export workflow (even without export_to)
-    # - Export to temporary directory, render, then clean up (or export to real dir)
+    # - If version is specified with export_to: use export workflow
+    # - If version is specified without export_to: use direct rendering (no export)
+    #   Load network with version and render with full mode for complete inlining
     # - This ensures proper version resolution for hierarchical references
-    # - Return string if export_to is None, otherwise return ExportResult
 
-    if version is not None:
-        # Use version export workflow for proper version resolution
-        import shutil
-        import tempfile
-
-        exporter = VersionExporter(versioning_config=versioning_config)
-        version_spec = version
-
-        # Determine export directory
-        if export_to is not None:
-            # Export to user-specified directory
-            export_result = exporter.export_version(
-                source_path=str(path),
-                version_spec=version_spec,
-                target_dir=str(export_to),
-                overwrite=overwrite,
-                vars=vars,
-                classifier=classifier,
-            )
-            # Return ExportResult as before
-            return export_result
-        else:
-            # Export to temporary directory, render, and clean up
-            with tempfile.TemporaryDirectory() as temp_dir:
-                export_result = exporter.export_version(
-                    source_path=str(path),
-                    version_spec=version_spec,
-                    target_dir=temp_dir,
-                    overwrite=True,
-                    vars=vars,
-                    classifier=classifier,
-                )
-                # Return only the rendered content string
-                return export_result.root_prompt_content
-
-    # Export without version (just export_to)
     if export_to is not None:
-        # Use version export workflow with "latest" version
+        # Export to user-specified directory
         exporter = VersionExporter(versioning_config=versioning_config)
-        return exporter.export_version(
+        export_result = exporter.export_version(
             source_path=str(path),
-            version_spec="latest",
+            version_spec=version,
             target_dir=str(export_to),
             overwrite=overwrite,
             vars=vars,
             classifier=classifier,
         )
+        # Return ExportResult as before
+        return export_result
+    else:
+        # Direct rendering with version (no export)
+        # Load the node network with version-aware resolution
+        network = load_node_network(
+            root_path=path,
+            config=config,
+            version=version,
+            classifier=classifier,
+            versioning_config=versioning_config,
+        )
 
-    # Standard rendering workflow (no version, no export)
-    # Load the node network from file
-    network = load_node_network(root_path=path, config=config, version=None)
-
-    # Render the network to target format
-    return render_node_network(
-        network=network, target_format=target_format, render_mode=render_mode, vars=vars
-    )
+        # Render the network to target format with full mode for complete inlining
+        return render_node_network(
+            network=network,
+            target_format=target_format,
+            render_mode=render_mode,
+            vars=vars,
+        )
 
 
 def load_prompt(

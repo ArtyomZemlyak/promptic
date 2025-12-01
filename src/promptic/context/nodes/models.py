@@ -33,6 +33,13 @@ class NodeReference(BaseModel):
         ..., description="Reference type determining resolution strategy"
     )
     label: Optional[str] = Field(default=None, description="Optional label for display")
+    resolved_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "Resolved absolute path after version-aware resolution. "
+            "Populated during network building to disambiguate versioned references."
+        ),
+    )
 
 
 class ContextNode(BaseModel):

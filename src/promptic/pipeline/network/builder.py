@@ -300,6 +300,12 @@ class NodeNetworkBuilder:
                 else:
                     referenced_node = self.resolver.resolve(ref.path, network_root)
 
+                # Persist resolved path for downstream consumers (inliners, exporters, etc.)
+                try:
+                    ref.resolved_path = str(referenced_node.id)
+                except Exception:
+                    pass
+
                 # Recursively build network for referenced node
                 # Always use network_root for relative path resolution
                 self._build_network_recursive(

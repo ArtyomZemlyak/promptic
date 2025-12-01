@@ -8,3 +8,5 @@ You will analyze text and extract key information with enhanced understanding:
 - Key phrases
 - Sentiment analysis
 - Topic classification
+
+[Task Definition](sub_task/sub_task.md)
