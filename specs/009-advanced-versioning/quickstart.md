@@ -254,10 +254,10 @@ from promptic.versioning import VersioningConfig
 
 class MyAppSettings(BaseSettings):
     """My application settings."""
-    
+
     # Embed promptic config as nested model
     promptic: VersioningConfig = VersioningConfig()
-    
+
     # My app's other settings
     api_key: str
     debug: bool = False
@@ -357,5 +357,3 @@ result = export_version(
     versioning_config=config
 )
 ```
-
-

@@ -236,4 +236,3 @@ german_formal = render(
 
 - [Versioning Configuration Guide](./versioning-configuration.md) - General configuration
 - [Version Prereleases Guide](./version-prereleases.md) - Handling alpha/beta/rc versions
-

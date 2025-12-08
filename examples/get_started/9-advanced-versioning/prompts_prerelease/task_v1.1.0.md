@@ -12,5 +12,3 @@ This is the stable release that follows all the prereleases:
 
 When using `version="latest"` with default settings (include_prerelease=False),
 this version will be selected as the latest stable release.
-
-

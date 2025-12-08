@@ -8,5 +8,3 @@ This is a release version (no prerelease suffix).
 
 When loading with `version="latest"`, this will be selected over any prerelease
 versions of v1.0.0 or higher.
-
-

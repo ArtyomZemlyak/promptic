@@ -358,4 +358,3 @@ result = export_version(
     versioning_config=config
 )
 ```
-

@@ -9,6 +9,7 @@ from promptic.context.nodes.errors import NodeReferenceNotFoundError, PathResolu
 from promptic.context.nodes.models import ContextNode
 from promptic.resolvers.base import NodeReferenceResolver
 from promptic.versioning import VersionSpec
+from promptic.versioning.adapters.scanner import VersionedFileScanner
 from promptic.versioning.domain.errors import VersionNotFoundError
 from promptic.versioning.utils.path_resolver import PromptPathResolver
 
@@ -97,8 +98,8 @@ class FilesystemReferenceResolver(NodeReferenceResolver):
             True if path is valid, False otherwise
         """
         try:
-            effective_version = version if version is not None else self.version
-            resolved_path = self._resolve_path(path, base_path, effective_version)
+            version_to_use = self._determine_version_spec(path, version)
+            resolved_path = self._resolve_path(path, base_path, version_to_use)
             return resolved_path.exists()
         except (FileNotFoundError, VersionNotFoundError, PathResolutionError):
             return False
@@ -109,10 +110,11 @@ class FilesystemReferenceResolver(NodeReferenceResolver):
         base_dir = base_path.parent if base_path.is_file() else base_path
 
         try:
+            version_to_use = self._determine_version_spec(path, version)
             return self._path_resolver.resolve(
                 raw_path=path,
                 base_dir=base_dir,
-                version_spec=version if version is not None else self.version,
+                version_spec=version_to_use,
                 classifier=self.classifier,
                 default_version="latest",
             )
@@ -120,3 +122,24 @@ class FilesystemReferenceResolver(NodeReferenceResolver):
             raise
         except Exception as e:
             raise PathResolutionError(f"Failed to resolve path {path} from {base_path}: {e}") from e
+
+    def _determine_version_spec(
+        self, ref_path: str, provided_version: Optional[VersionSpec]
+    ) -> Optional[VersionSpec]:
+        """
+        Decide which version spec to use for a reference.
+
+        Rules:
+        - If reference name already includes version suffix -> use provided/self version
+        - Otherwise -> fall back to latest (None here; PromptPathResolver will use default_version)
+        """
+
+        version_to_use = provided_version if provided_version is not None else self.version
+        if version_to_use is None:
+            return None
+
+        scanner = VersionedFileScanner(config=self._path_resolver._config)
+        basename = Path(ref_path).name
+        has_version = scanner.extract_version_from_filename(basename) is not None
+
+        return version_to_use if has_version else None

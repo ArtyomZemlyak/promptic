@@ -29,6 +29,7 @@ from promptic.versioning import (
     VersionResolver,
     VersionSpec,
 )
+from promptic.versioning.utils.path_resolver import PromptPathResolver
 
 if TYPE_CHECKING:
     from promptic.versioning.config import VersioningConfig
@@ -158,12 +159,34 @@ def render(
     #   Load network with version and render with full mode for complete inlining
     # - This ensures proper version resolution for hierarchical references
 
+    path_obj = Path(path)
+    # If path already points to a concrete file, version is meaningless for root resolution
+    version_for_resolution = None if path_obj.is_file() else version
+
     if export_to is not None:
+        # Resolve path hints (directories/base names/unversioned files) before export
+        resolver = PromptPathResolver(versioning_config=versioning_config)
+        resolved_path = resolver.resolve(
+            raw_path=path_obj,
+            base_dir=path_obj.parent if path_obj.parent.exists() else None,
+            version_spec=version_for_resolution,
+            classifier=classifier,
+            default_version="latest",
+        )
+
+        # If caller asked for latest and we resolved a versioned file, lock export to that version
+        effective_version = version
+        if (version is None or version == "latest") and Path(resolved_path).is_file():
+            scanner = VersionedFileScanner(config=versioning_config)
+            resolved_version = scanner.extract_version_from_filename(Path(resolved_path).name)
+            if resolved_version is not None:
+                effective_version = str(resolved_version)
+
         # Export to user-specified directory
         exporter = VersionExporter(versioning_config=versioning_config)
         export_result = exporter.export_version(
-            source_path=str(path),
-            version_spec=version,
+            source_path=str(resolved_path),
+            version_spec=effective_version,
             target_dir=str(export_to),
             overwrite=overwrite,
             vars=vars,
@@ -172,12 +195,11 @@ def render(
         # Return ExportResult as before
         return export_result
     else:
-        # Direct rendering with version (no export)
-        # Load the node network with version-aware resolution
+        # Direct rendering with version-aware resolution
         network = load_node_network(
             root_path=path,
             config=config,
-            version=version,
+            version=version_for_resolution,
             classifier=classifier,
             versioning_config=versioning_config,
         )

@@ -10,5 +10,3 @@ When requesting `classifier={"lang": "ru"}`:
 
 This demonstrates the "partial classifier coverage" behavior:
 The system finds the latest version that HAS the requested classifier.
-
-

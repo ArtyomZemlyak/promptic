@@ -10,5 +10,3 @@ Custom patterns allow non-standard versioning schemes:
 - Or any regex with named capture groups
 
 Pattern used: `r"_rev(?P<major>\d+)"`
-
-

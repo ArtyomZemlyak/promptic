@@ -23,24 +23,24 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class VersioningConfig(BaseModel):
     """
     Versioning configuration - NOT auto-resolved from environment variables.
-    
+
     # AICODE-NOTE: This is a BaseModel (not BaseSettings) intentionally.
     # Host applications can embed this model in their own pydantic-settings
     # without conflicts from automatic environment variable resolution.
     """
     model_config = ConfigDict(frozen=True)  # Immutable
-    
+
     # Delimiter configuration
     delimiter: str = "_"
     delimiters: list[str] | None = None  # Multi-delimiter mode
-    
+
     # Version pattern (optional custom regex)
     version_pattern: str | None = None
-    
+
     # Prerelease handling
     include_prerelease: bool = False
     prerelease_order: list[str] = ["alpha", "beta", "rc"]
-    
+
     # Classifiers
     classifiers: dict[str, ClassifierConfig] | None = None
 ```
@@ -70,9 +70,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class VersioningSettings(VersioningConfig, BaseSettings):
     """
     Versioning configuration with environment variable resolution.
-    
+
     Uses PROMPTIC_ prefix for all environment variables.
-    
+
     # AICODE-NOTE: This class is opt-in. promptic itself never instantiates it.
     # Applications that want env var resolution can use this instead of
     # VersioningConfig.
@@ -101,12 +101,12 @@ class VersioningSettings(VersioningConfig, BaseSettings):
 class ClassifierConfig(BaseModel):
     """
     Configuration for a single classifier.
-    
+
     Classifiers create prompt variants within a version. For example,
     language classifiers allow `prompt_en_v1.md` and `prompt_ru_v1.md`.
     """
     model_config = ConfigDict(frozen=True)
-    
+
     name: str
     values: list[str]
     default: str
@@ -136,7 +136,7 @@ ClassifierConfig(name="tone", values=["formal", "casual"], default="formal")
 class VersionPattern:
     """
     Version detection pattern with compiled regex and extraction logic.
-    
+
     # AICODE-NOTE: Patterns MUST use named capture groups for version components:
     # - (?P<major>\d+) - required
     # - (?P<minor>\d+) - optional
@@ -145,7 +145,7 @@ class VersionPattern:
     """
     pattern_string: str
     _compiled: re.Pattern = field(init=False, repr=False)
-    
+
     def __post_init__(self):
         self._compiled = re.compile(self.pattern_string, re.IGNORECASE)
         self._validate_named_groups()
@@ -156,7 +156,7 @@ class VersionPattern:
 @classmethod
 def from_delimiter(cls, delimiter: str) -> "VersionPattern":
     """Generate standard pattern for a delimiter."""
-    
+
 @classmethod
 def from_delimiters(cls, delimiters: list[str]) -> "VersionPattern":
     """Generate combined pattern for multiple delimiters."""
@@ -180,7 +180,7 @@ def from_delimiters(cls, delimiters: list[str]) -> "VersionPattern":
 class VersionComponents:
     """
     Extracted version components from a filename.
-    
+
     Used internally for comparison and resolution.
     """
     major: int
@@ -207,7 +207,7 @@ class VersionComponents:
 class SemanticVersion:
     """
     Semantic version with optional prerelease support.
-    
+
     # AICODE-NOTE: Extended from original to support prerelease field.
     # Comparison logic updated: releases > prereleases of same base version.
     # Prerelease ordering: alpha < beta < rc (configurable).
@@ -216,7 +216,7 @@ class SemanticVersion:
     minor: int
     patch: int
     prerelease: str | None = None
-    
+
     def __lt__(self, other: "SemanticVersion") -> bool:
         # Compare major.minor.patch first
         if (self.major, self.minor, self.patch) != (other.major, other.minor, other.patch):
@@ -248,7 +248,7 @@ class SemanticVersion:
 class VersionInfo:
     """
     Information about a versioned file.
-    
+
     Extended to include extracted classifiers.
     """
     filename: str
@@ -410,5 +410,3 @@ Directory Path + Config
            ▼
       Resolved Path
 ```
-
-

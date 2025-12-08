@@ -16,5 +16,3 @@ With `include_prerelease=True`:
 
 You can always request this version explicitly:
 - `version="v2.0.0-alpha"` returns this file
-
-

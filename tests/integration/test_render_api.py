@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from promptic import render
+from promptic.versioning.domain.exporter import ExportResult
 
 
 @pytest.fixture
@@ -218,6 +219,40 @@ def test_render_resolves_nested_prompt_hints(tmp_path: Path):
     latest_output = render(prompt_dir, render_mode="full")
     assert "Root v2" in latest_output
     assert "Process v2" in latest_output
+
+
+def test_render_resolves_references_with_root_version(tmp_path: Path):
+    """Unversioned references should still resolve to latest even when root version is specified."""
+    prompt_dir = _create_versioned_prompt(tmp_path)
+
+    output = render(prompt_dir, version="v1", render_mode="full")
+
+    assert "Root v1" in output
+    # Reference without version/extension should pick latest (v2)
+    assert "Process v2" in output
+
+
+def test_render_export_accepts_file_hint(tmp_path: Path):
+    """render() with export_to should resolve file hints without explicit version."""
+    prompt_dir = _create_versioned_prompt(tmp_path)
+    export_dir = tmp_path / "export_hint"
+
+    result = render(
+        prompt_dir / "task.md",
+        render_mode="file_first",
+        export_to=export_dir,
+    )
+
+    assert isinstance(result, ExportResult)
+
+    exported_root = export_dir / "task.md"
+    assert exported_root.exists()
+    assert "Root v2" in exported_root.read_text()
+
+    # Referenced file should also be exported using the resolved version
+    exported_process_v2 = export_dir / "instructions" / "process_v2.md"
+    assert exported_process_v2.exists()
+    assert "Process v2" in exported_process_v2.read_text()
 
     pinned_output = render(prompt_dir, version="v1", render_mode="full")
     assert "Root v1" in pinned_output

@@ -16,5 +16,3 @@ Es gibt keine v1.0.0 auf Deutsch.
 
 Bei Anfrage von `classifier={"lang": "de"}` mit `version="latest"`:
 - System findet v2.0.0-de (diese Datei)
-
-

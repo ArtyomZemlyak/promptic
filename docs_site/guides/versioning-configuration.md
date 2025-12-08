@@ -61,19 +61,19 @@ from promptic.versioning import VersioningConfig
 config = VersioningConfig(
     # Single delimiter (default: "_")
     delimiter="_",  # Options: "_", "-", "."
-    
+
     # Multiple delimiters (overrides single delimiter)
     delimiters=None,  # e.g., ["_", "-"]
-    
+
     # Custom regex pattern (must use named capture groups)
     version_pattern=None,  # e.g., r"_rev(?P<major>\d+)"
-    
+
     # Include prereleases in "latest" resolution
     include_prerelease=False,
-    
+
     # Prerelease ordering for comparison
     prerelease_order=["alpha", "beta", "rc"],
-    
+
     # Classifier definitions
     classifiers=None,  # e.g., {"lang": ClassifierConfig(...)}
 )
@@ -146,7 +146,7 @@ from promptic.versioning import VersioningConfig
 class MyAppSettings(BaseSettings):
     # Embed promptic config as nested model
     promptic: VersioningConfig = VersioningConfig()
-    
+
     # My app's other settings
     api_key: str
     debug: bool = False
@@ -174,4 +174,3 @@ new_config = VersioningConfig(delimiter="_")
 - [Version Classifiers Guide](./version-classifiers.md) - Using language/audience classifiers
 - [Version Prereleases Guide](./version-prereleases.md) - Handling alpha/beta/rc versions
 - [API Reference](../reference/versioning-api.md) - Complete API documentation
-

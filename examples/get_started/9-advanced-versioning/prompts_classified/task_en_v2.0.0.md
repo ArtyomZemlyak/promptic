@@ -17,5 +17,3 @@ New features in v2.0.0:
 - Extended format support
 
 This prompt is localized for English-speaking users.
-
-

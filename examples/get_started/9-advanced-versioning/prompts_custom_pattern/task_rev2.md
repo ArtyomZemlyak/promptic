@@ -9,5 +9,3 @@ Revision 2 adds new capabilities:
 - Feature Y
 
 Pattern used: `r"_rev(?P<major>\d+)"`
-
-

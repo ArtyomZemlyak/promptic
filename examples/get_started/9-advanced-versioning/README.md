@@ -207,5 +207,3 @@ except ValueError as e:
 - See `docs_site/guides/versioning-configuration.md` for full configuration reference
 - See `docs_site/guides/version-classifiers.md` for classifier best practices
 - See `docs_site/guides/version-prereleases.md` for pre-release workflows
-
-

@@ -32,7 +32,7 @@ def render(
 ) -> str | ExportResult:
     """
     Load and render a prompt file with optional versioning configuration.
-    
+
     Args:
         path: Path to the prompt file
         target_format: Output format
@@ -49,11 +49,11 @@ def render(
         versioning_config: Versioning configuration (NEW)
             - If None, uses default configuration (backward compatible)
             - Controls delimiter, patterns, prerelease, classifiers
-    
+
     Returns:
         str: Rendered content (when export_to is None)
         ExportResult: Export result (when export_to is provided)
-    
+
     Raises:
         FileNotFoundError: File doesn't exist
         VersionNotFoundError: Requested version doesn't exist
@@ -76,7 +76,7 @@ def load_prompt(
 ) -> str:
     """
     Load a prompt with version-aware resolution.
-    
+
     Args:
         path: Directory path containing versioned prompts
         version: Version specification
@@ -84,10 +84,10 @@ def load_prompt(
             - {"lang": "ru"} → filter to Russian language files
             - Multiple classifiers: {"lang": "ru", "tone": "formal"}
         versioning_config: Versioning configuration (NEW)
-    
+
     Returns:
         str: Content of resolved prompt file
-    
+
     Raises:
         VersionNotFoundError: Version doesn't exist
         ClassifierNotFoundError: Classifier value doesn't exist
@@ -111,7 +111,7 @@ def export_version(
 ) -> ExportResult:
     """
     Export a version snapshot with optional classifier filtering.
-    
+
     Args:
         source_path: Source prompt hierarchy
         version_spec: Version specification
@@ -120,7 +120,7 @@ def export_version(
         vars: Variables for substitution
         classifier: Classifier filter (NEW)
         versioning_config: Versioning configuration (NEW)
-    
+
     Returns:
         ExportResult: Export result with files and content
     """
@@ -138,7 +138,7 @@ def export_version(
 class VersioningConfig(BaseModel):
     """
     Versioning configuration.
-    
+
     Attributes:
         delimiter: Single delimiter for version detection (default: "_")
         delimiters: Multiple delimiters for mixed directories (overrides delimiter)
@@ -146,7 +146,7 @@ class VersioningConfig(BaseModel):
         include_prerelease: Include prereleases in "latest" resolution
         prerelease_order: Order for prerelease comparison
         classifiers: Classifier definitions
-    
+
     Example:
         config = VersioningConfig(
             delimiter="-",
@@ -157,21 +157,21 @@ class VersioningConfig(BaseModel):
         )
     """
     model_config = ConfigDict(frozen=True)
-    
+
     delimiter: str = "_"
     delimiters: list[str] | None = None
     version_pattern: str | None = None
     include_prerelease: bool = False
     prerelease_order: list[str] = ["alpha", "beta", "rc"]
     classifiers: dict[str, ClassifierConfig] | None = None
-    
+
     @field_validator("delimiter")
     @classmethod
     def validate_delimiter(cls, v: str) -> str:
         if v not in ("_", ".", "-"):
             raise ValueError(f"Invalid delimiter: {v}. Must be '_', '.', or '-'")
         return v
-    
+
     @field_validator("delimiters")
     @classmethod
     def validate_delimiters(cls, v: list[str] | None) -> list[str] | None:
@@ -180,7 +180,7 @@ class VersioningConfig(BaseModel):
                 if d not in ("_", ".", "-"):
                     raise ValueError(f"Invalid delimiter: {d}")
         return v
-    
+
     @field_validator("version_pattern")
     @classmethod
     def validate_pattern(cls, v: str | None) -> str | None:
@@ -200,18 +200,18 @@ class VersioningConfig(BaseModel):
 class ClassifierConfig(BaseModel):
     """
     Single classifier configuration.
-    
+
     Attributes:
         name: Classifier name (e.g., "lang", "tone")
         values: Allowed values (e.g., ["en", "ru", "de"])
         default: Default value (must be in values)
     """
     model_config = ConfigDict(frozen=True)
-    
+
     name: str
     values: list[str]
     default: str
-    
+
     @model_validator(mode="after")
     def validate_default_in_values(self) -> "ClassifierConfig":
         if self.default not in self.values:
@@ -225,17 +225,17 @@ class ClassifierConfig(BaseModel):
 class VersioningSettings(VersioningConfig, BaseSettings):
     """
     Versioning configuration with environment variable resolution.
-    
+
     Environment variables (PROMPTIC_ prefix):
         PROMPTIC_DELIMITER: "_" | "." | "-"
         PROMPTIC_INCLUDE_PRERELEASE: "true" | "false"
         PROMPTIC_PRERELEASE_ORDER: '["alpha", "beta", "rc"]' (JSON)
-    
+
     Example:
         # From environment
         export PROMPTIC_DELIMITER="-"
         export PROMPTIC_INCLUDE_PRERELEASE=true
-        
+
         settings = VersioningSettings()
         assert settings.delimiter == "-"
         assert settings.include_prerelease == True
@@ -259,7 +259,7 @@ class VersionResolver(ABC):
     """
     Interface for version resolution strategies.
     """
-    
+
     @abstractmethod
     def resolve_version(
         self,
@@ -270,13 +270,13 @@ class VersionResolver(ABC):
     ) -> str:
         """
         Resolve version from path and specification.
-        
+
         Args:
             path: Directory path
             version_spec: Version specification
             config: Versioning configuration
             classifier: Classifier filter
-        
+
         Returns:
             Resolved file path
         """
@@ -292,57 +292,57 @@ class VersionPattern:
     """
     Version detection pattern.
     """
-    
+
     def __init__(self, pattern_string: str):
         """
         Initialize pattern.
-        
+
         Args:
             pattern_string: Regex pattern with named capture groups
-        
+
         Raises:
             InvalidVersionPatternError: If pattern is invalid
         """
-    
+
     @classmethod
     def from_delimiter(cls, delimiter: str) -> "VersionPattern":
         """
         Create pattern for single delimiter.
-        
+
         Args:
             delimiter: "_", ".", or "-"
-        
+
         Returns:
             VersionPattern for the delimiter
         """
-    
+
     @classmethod
     def from_delimiters(cls, delimiters: list[str]) -> "VersionPattern":
         """
         Create pattern for multiple delimiters.
-        
+
         Args:
             delimiters: List of delimiters
-        
+
         Returns:
             Combined VersionPattern
         """
-    
+
     @classmethod
     def from_config(cls, config: VersioningConfig) -> "VersionPattern":
         """
         Create pattern from configuration.
-        
+
         Uses custom pattern if set, otherwise generates from delimiters.
         """
-    
+
     def extract_version(self, filename: str) -> VersionComponents | None:
         """
         Extract version components from filename.
-        
+
         Args:
             filename: Filename to parse
-        
+
         Returns:
             VersionComponents if version found, None otherwise
         """
@@ -358,12 +358,12 @@ class VersionPattern:
 class InvalidVersionPatternError(Exception):
     """
     Raised when custom version pattern is malformed.
-    
+
     Attributes:
         pattern: The invalid pattern string
         reason: Why the pattern is invalid
         message: Human-readable error message
-    
+
     Example:
         InvalidVersionPatternError(
             pattern=r"v(\d+)",
@@ -378,13 +378,13 @@ class InvalidVersionPatternError(Exception):
 class ClassifierNotFoundError(Exception):
     """
     Raised when requested classifier value doesn't exist.
-    
+
     Attributes:
         classifier_name: Name of the classifier (e.g., "lang")
         requested_value: Value that was requested (e.g., "es")
         available_values: Values that exist (e.g., ["en", "ru"])
         message: Human-readable error message
-    
+
     Example:
         ClassifierNotFoundError(
             classifier_name="lang",
@@ -416,4 +416,3 @@ from promptic.versioning import VersioningConfig
 config = VersioningConfig(delimiter="-")
 content = render("prompts/task.md", versioning_config=config)
 ```
-

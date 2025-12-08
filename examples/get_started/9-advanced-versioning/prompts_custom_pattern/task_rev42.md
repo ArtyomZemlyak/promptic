@@ -14,5 +14,3 @@ When loading with custom pattern `r"_rev(?P<major>\d+)"`:
 Pattern used: `r"_rev(?P<major>\d+)"`
 
 The answer to life, the universe, and everything.
-
-

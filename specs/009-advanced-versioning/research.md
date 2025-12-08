@@ -33,7 +33,7 @@ from pydantic import BaseModel, field_validator
 class VersioningConfig(BaseModel):
     """Versioning configuration - NOT auto-resolved from env vars."""
     model_config = ConfigDict(frozen=True)  # Immutable after creation
-    
+
     delimiter: str = "_"
     delimiters: list[str] | None = None
     include_prerelease: bool = False
@@ -70,7 +70,7 @@ Example: `prompt-en-v1-rc.1.md`
 ```python
 # Pattern structure:
 # {base}{delimiter}{classifier}*{delimiter}v{version}{delimiter}{prerelease}?.{ext}
-# 
+#
 # Examples:
 # prompt_en_v1.md          → base=prompt, classifier=en, version=v1, prerelease=None
 # prompt-ru-v2.0.0-beta.md → base=prompt, classifier=ru, version=v2.0.0, prerelease=beta
@@ -138,7 +138,7 @@ def resolve_with_classifier(
         return max(matching, key=lambda v: v.version)
     else:
         # Explicit version request - must match exactly
-        matching = [v for v in versions 
+        matching = [v for v in versions
                     if v.version == version_spec and matches_classifier(v, classifier)]
         if not matching:
             raise VersionNotFoundError(f"Version {version_spec} with classifier {classifier} not found")
@@ -167,10 +167,10 @@ Support three delimiters: underscore (`_`), dot (`.`), hyphen (`-`). Allow multi
 class VersionPattern:
     DELIMITER_PATTERNS = {
         "_": r"_v",
-        "-": r"-v", 
+        "-": r"-v",
         ".": r"\.v",
     }
-    
+
     @classmethod
     def from_delimiters(cls, delimiters: list[str]) -> "VersionPattern":
         pattern_parts = [cls.DELIMITER_PATTERNS[d] for d in delimiters]
@@ -244,5 +244,3 @@ dependencies = [
 1. Import `VersioningConfig` from `promptic.versioning`
 2. Embed as nested model in host app's pydantic-settings
 3. No namespace conflicts with host app's env vars
-
-

@@ -10,5 +10,3 @@ Prerelease ordering: `alpha < beta < rc < release`
 
 This version will NOT be selected by `version="latest"` unless
 `include_prerelease=True` is configured.
-
-

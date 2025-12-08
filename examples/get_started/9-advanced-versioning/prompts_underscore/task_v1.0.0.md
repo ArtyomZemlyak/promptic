@@ -7,5 +7,3 @@ This is version 1.0.0 of the task processor.
 Standard underscore delimiter: `task_v1.0.0.md`
 
 This is the default delimiter style that promptic uses out of the box.
-
-

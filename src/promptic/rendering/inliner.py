@@ -126,8 +126,8 @@ class ReferenceInliner:
         # to handle various path formats (relative, absolute, with/without extension).
         # Also handles versioned files by matching base names (without version suffix).
         """
-        from pathlib import Path
         import re
+        from pathlib import Path
 
         # Normalize the search path
         search_path = Path(path)

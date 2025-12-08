@@ -10,5 +10,3 @@ Version 2.0.0 includes enhanced features:
 - Improved performance
 - Better error handling
 - New configuration options
-
-

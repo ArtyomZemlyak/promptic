@@ -6,5 +6,3 @@ This is version 1.0.0 using underscore delimiter.
 
 In mixed directories, files can use different naming conventions.
 This file uses underscore: `task_v1.0.0.md`
-
-

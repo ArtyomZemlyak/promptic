@@ -12,7 +12,7 @@
 
 **Problems Solved**: The current versioning system (1) only supports underscore delimiters (`_v1`), forcing projects with different conventions to rename files, (2) lacks support for version postfixes (e.g., `-beta`, `-rc1`), limiting semantic versioning expressiveness, (3) cannot handle prompt variants/classifiers (like language or audience), requiring manual file selection, (4) has hardcoded patterns that cannot be customized per project, (5) lacks a configuration system that can be safely embedded in host applications.
 
-**Real-World Use Cases**: 
+**Real-World Use Cases**:
 - A project migrating from another tool with `-v1` naming convention can configure promptic to work with existing files
 - A multilingual application maintains `prompt_en_v2.md` and `prompt_ru_v2.md`, selecting the appropriate language variant automatically
 - A team uses semantic versioning postfixes (`v1.0.0-beta`, `v1.0.0-rc1`) and needs proper "latest" resolution excluding pre-releases by default

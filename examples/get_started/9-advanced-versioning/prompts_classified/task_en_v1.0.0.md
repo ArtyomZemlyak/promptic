@@ -10,5 +10,3 @@ Follow these steps to process your task:
 3. Return the formatted output
 
 This prompt is localized for English-speaking users.
-
-
