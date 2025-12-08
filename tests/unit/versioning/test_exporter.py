@@ -82,12 +82,13 @@ class TestValidateAndResolveRoot:
             (source / "root_v1.md").write_text("# Root v1")
 
             exporter = VersionExporter()
-            resolved_path, source_base = exporter._validate_and_resolve_root(
+            resolved_path, source_base, source_is_dir = exporter._validate_and_resolve_root(
                 str(source), "v1", Path(tmpdir) / "target"
             )
 
             assert "root_v1.md" in resolved_path
             assert source_base == source.resolve()
+            assert source_is_dir is True
 
     def test_resolves_file_directly(self):
         """Test that file source returns the file path directly."""
@@ -96,12 +97,13 @@ class TestValidateAndResolveRoot:
             source_file.write_text("# Root")
 
             exporter = VersionExporter()
-            resolved_path, source_base = exporter._validate_and_resolve_root(
+            resolved_path, source_base, source_is_dir = exporter._validate_and_resolve_root(
                 str(source_file), "latest", Path(tmpdir) / "target"
             )
 
             assert resolved_path == str(source_file)
             assert source_base == source_file.parent.resolve()
+            assert source_is_dir is False
 
     def test_raises_error_for_missing_root(self):
         """Test that error is raised when root file doesn't exist."""
@@ -139,6 +141,7 @@ class TestBuildFileMapping:
                 source_base=source.resolve(),
                 target=target,
                 version_spec="v1",
+                source_is_directory=True,
             )
 
             # Version suffix should be removed in target path
@@ -167,6 +170,7 @@ class TestBuildFileMapping:
                 source_base=source.resolve(),
                 target=target,
                 version_spec="v1",
+                source_is_directory=True,
             )
 
             # Check subdirectory structure is preserved
@@ -192,9 +196,35 @@ class TestBuildFileMapping:
                 source_base=source.resolve(),
                 target=target,
                 version_spec="latest",
+                source_is_directory=True,
             )
 
             assert str(instructions) in mapping
+
+    def test_file_source_skips_unrelated_versioned_files(self):
+        """File source should not pull all versioned files from directory."""
+        with TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "prompts"
+            source.mkdir()
+
+            root_file = source / "note_mode_v1.md"
+            root_file.write_text("# Root")
+            unrelated = source / "ask_mode_v1.md"
+            unrelated.write_text("# Unrelated")
+
+            target = Path(tmpdir) / "export"
+
+            exporter = VersionExporter()
+            mapping = exporter._build_file_mapping(
+                root_path=root_file,
+                source_base=source.resolve(),
+                target=target,
+                version_spec="latest",
+                source_is_directory=False,
+            )
+
+            assert str(root_file) in mapping
+            assert str(unrelated) not in mapping
 
 
 class TestCreateContentProcessor:

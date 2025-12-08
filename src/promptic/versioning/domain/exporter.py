@@ -119,7 +119,7 @@ class VersionExporter:
         self.filesystem_exporter.validate_export_target(str(target), overwrite)
 
         # Step 1: Validate and resolve root
-        resolved_root, source_base = self._validate_and_resolve_root(
+        resolved_root, source_base, source_is_directory = self._validate_and_resolve_root(
             source_path, version_spec, target, classifier
         )
         root_path = Path(resolved_root)
@@ -128,7 +128,9 @@ class VersionExporter:
         hierarchical_paths = self._build_hierarchical_paths(str(root_path)) if vars else {}
 
         # Step 3: Build file mapping
-        file_mapping = self._build_file_mapping(root_path, source_base, target, version_spec)
+        file_mapping = self._build_file_mapping(
+            root_path, source_base, target, version_spec, source_is_directory
+        )
 
         # Step 4: Create content processor
         content_processor = self._create_content_processor(
@@ -144,7 +146,7 @@ class VersionExporter:
         version_spec: VersionSpec,
         target: Path,
         classifier: Optional[dict[str, str]] = None,
-    ) -> tuple[str, Path]:
+    ) -> tuple[str, Path, bool]:
         """
         Validate export target and resolve root prompt file.
 
@@ -161,16 +163,17 @@ class VersionExporter:
             classifier: Optional classifier filter (e.g., {"lang": "ru"})
 
         Returns:
-            Tuple of (resolved_root_path, source_base_path)
+            Tuple of (resolved_root_path, source_base_path, source_is_directory)
 
         Raises:
             ExportError: If root file cannot be found
             ClassifierNotFoundError: If requested classifier value doesn't exist
         """
         source = Path(source_path)
+        source_is_directory = source.is_dir()
 
         # Resolve root prompt version with classifier filtering
-        if source.is_dir():
+        if source_is_directory:
             resolved_root = self.version_resolver.resolve_version(
                 str(source), version_spec, classifier
             )
@@ -186,9 +189,9 @@ class VersionExporter:
             )
 
         # source_base must be resolved to absolute path for consistent relative path calculations
-        source_base = (source if source.is_dir() else source.parent).resolve()
+        source_base = (source if source_is_directory else source.parent).resolve()
 
-        return resolved_root, source_base
+        return resolved_root, source_base, source_is_directory
 
     def _build_file_mapping(
         self,
@@ -196,6 +199,7 @@ class VersionExporter:
         source_base: Path,
         target: Path,
         version_spec: VersionSpec,
+        source_is_directory: bool,
     ) -> dict[str, str]:
         """
         Build source->target file mapping preserving directory structure.
@@ -211,6 +215,7 @@ class VersionExporter:
             source_base: Base directory for relative path calculation
             target: Target export directory
             version_spec: Version specification for discovery
+            source_is_directory: Whether original source was a directory (export whole tree)
 
         Returns:
             Dictionary mapping source paths to target paths
@@ -219,7 +224,10 @@ class VersionExporter:
         referenced_base_names: dict[str, str] = {}
 
         # Discover all versioned files and explicitly referenced files
-        all_versioned_files = self.discover_versioned_files(str(source_base), version_spec)
+        # Only include full versioned set when source was a directory (export whole tree).
+        all_versioned_files: list[str] = []
+        if source_is_directory:
+            all_versioned_files = self.discover_versioned_files(str(source_base), version_spec)
         referenced_files = self.discover_referenced_files(str(root_path), source_base)
 
         # Process explicitly referenced files first
